@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 set(MOLTBOOKMONITOR_VERSION "0.1.0" CACHE STRING "Application semantic version")
 set(MOLTBOOKMONITOR_BUNDLE_ID "com.moltbook.monitor" CACHE STRING "Bundle identifier")
+option(MOLTBOOKMONITOR_MACOS_ADHOC_CODESIGN "Ad-hoc sign macOS app bundle after deployment" ON)
 
 project(MoltbookMonitor VERSION ${MOLTBOOKMONITOR_VERSION} LANGUAGES CXX)
 
@@ -64,3 +65,39 @@ qt_generate_deploy_qml_app_script(
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
 install(SCRIPT ${deploy_script})
+
+if(APPLE AND MOLTBOOKMONITOR_MACOS_ADHOC_CODESIGN)
+    # Qt deployment can copy and patch binaries/plugins; finalize with one ad-hoc re-sign pass.
+    install(CODE "
+        set(app_bundle \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/appMoltbookMonitor.app\")
+        if(NOT EXISTS \"\${app_bundle}\")
+            message(FATAL_ERROR \"Expected app bundle not found: \${app_bundle}\")
+        endif()
+
+        execute_process(
+            COMMAND xattr -cr \"\${app_bundle}\"
+            RESULT_VARIABLE xattr_result
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+        if(NOT xattr_result EQUAL 0)
+            message(WARNING \"xattr -cr failed for \${app_bundle}; continuing with codesign.\")
+        endif()
+
+        execute_process(
+            COMMAND codesign --force --deep --sign - --timestamp=none \"\${app_bundle}\"
+            RESULT_VARIABLE codesign_result
+        )
+        if(NOT codesign_result EQUAL 0)
+            message(FATAL_ERROR \"Ad-hoc codesign failed for \${app_bundle}\")
+        endif()
+
+        execute_process(
+            COMMAND codesign --verify --deep --strict \"\${app_bundle}\"
+            RESULT_VARIABLE verify_result
+        )
+        if(NOT verify_result EQUAL 0)
+            message(FATAL_ERROR \"Code signature verification failed for \${app_bundle}\")
+        endif()
+    ")
+endif()

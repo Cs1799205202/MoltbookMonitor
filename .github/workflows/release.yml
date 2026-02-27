@@ -70,6 +70,14 @@ jobs:
         shell: bash
         run: cmake --install build --config Release --prefix "${{ github.workspace }}/dist"
 
+      - name: Verify macOS code signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP="${{ github.workspace }}/dist/appMoltbookMonitor.app"
+          codesign --verify --deep --strict "${APP}"
+          codesign -dv --verbose=2 "${APP}" || true
+
       - name: Package Windows artifact
         if: runner.os == 'Windows'
         shell: pwsh

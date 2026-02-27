@@ -58,7 +58,7 @@ Request header:
 ### Windows (Release)
 
 ```bash
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION=0.1.1
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION=0.1.2
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -66,12 +66,12 @@ cmake --install build --config Release --prefix dist
 ### macOS (Release)
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION=0.1.1
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION=0.1.2
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
 
-Qt deploy steps are integrated into the CMake install flow via Qt's generated deploy script, so runtime dependencies are bundled during `cmake --install`.
+Qt deployment is integrated into the CMake install flow via Qt's generated deploy script. On macOS, the install step also performs an ad-hoc re-sign of the final `.app` bundle and verifies the signature to avoid Apple Silicon runtime kill (`Code Signature Invalid`).
 
 ## CI and Release
 
@@ -81,21 +81,19 @@ GitHub Actions workflow: `.github/workflows/release.yml`
   - `windows-2022` (x64)
   - `macos-26` (Apple Silicon arm64)
 - Triggered on:
-  - pushes to `main`
-  - pull requests to `main`
-  - tags matching `v*`
+  - tags matching `v*` only
 - Tag builds produce GitHub Release assets (zip archives for each platform).
 
 Example release artifacts:
 
-- `MoltbookMonitor-0.1.1-windows-x64.zip`
-- `MoltbookMonitor-0.1.1-macos-arm64.zip`
+- `MoltbookMonitor-0.1.2-windows-x64.zip`
+- `MoltbookMonitor-0.1.2-macos-arm64.zip`
 
 ## Versioning
 
 - Semantic versioning is used.
 - CMake version is controlled by `MOLTBOOKMONITOR_VERSION`.
-- Git tags use a `v` prefix (example: `v0.1.1`).
+- Git tags use a `v` prefix (example: `v0.1.2`).
 
 ## Local Data Storage
 
@@ -111,3 +109,13 @@ Saved content includes API key, monitored agents, thresholds, latest timestamps,
 - API key is stored locally in the state file.
 - Request logs mask the Authorization token for display.
 - Response payload logs may still contain sensitive information from upstream API responses.
+
+## macOS Download Note
+
+Release zip files downloaded from browsers may be marked with quarantine attributes by macOS. If launch is blocked, run:
+
+```bash
+xattr -cr /path/to/appMoltbookMonitor.app
+```
+
+This project currently uses ad-hoc signing for compatibility and testing. It does not yet include Developer ID signing or notarization.
