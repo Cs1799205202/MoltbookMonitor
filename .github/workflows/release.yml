@@ -1,0 +1,118 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            platform_name: Windows x64
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            artifact_suffix: windows-x64
+          - os: macos-13
+            platform_name: macOS x64
+            qt_host: mac
+            qt_arch: clang_64
+            artifact_suffix: macos-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.0"
+          host: ${{ matrix.qt_host }}
+          target: desktop
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+
+      - name: Determine build version
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            APP_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            APP_VERSION="0.1.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+
+          ARTIFACT_BASENAME="MoltbookMonitor-${APP_VERSION}-${{ matrix.artifact_suffix }}"
+          echo "app_version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_basename=${ARTIFACT_BASENAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure
+        shell: bash
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/dist"
+          -DMOLTBOOKMONITOR_VERSION=${{ steps.vars.outputs.app_version }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel
+
+      - name: Install
+        shell: bash
+        run: cmake --install build --config Release --prefix "${{ github.workspace }}/dist"
+
+      - name: Package Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "${{ steps.vars.outputs.artifact_basename }}.zip"
+          Compress-Archive -Path dist\* -DestinationPath $archive -Force
+          "ARCHIVE_PATH=$archive" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Package macOS artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          archive="${{ steps.vars.outputs.artifact_basename }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist "${archive}"
+          echo "ARCHIVE_PATH=${archive}" >> "${GITHUB_ENV}"
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.vars.outputs.artifact_basename }}
+          path: ${{ env.ARCHIVE_PATH }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/**/*.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true
