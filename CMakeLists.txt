@@ -5,16 +5,8 @@ set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_DEFAULT}")
 set(MOLTBOOKMONITOR_VERSION_OVERRIDE "" CACHE STRING "Override application semantic version (for CI/release builds)")
 mark_as_advanced(MOLTBOOKMONITOR_VERSION_OVERRIDE)
 
-# Backward compatibility for legacy -DMOLTBOOKMONITOR_VERSION usage.
-# Ignore stale cache value from historical default 0.1.0 to avoid version drift.
 if(MOLTBOOKMONITOR_VERSION_OVERRIDE)
     set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_OVERRIDE}")
-elseif(DEFINED CACHE{MOLTBOOKMONITOR_VERSION})
-    set(_legacy_cached_version "$CACHE{MOLTBOOKMONITOR_VERSION}")
-    if(NOT _legacy_cached_version STREQUAL "" AND NOT _legacy_cached_version STREQUAL "0.1.0")
-        set(MOLTBOOKMONITOR_VERSION "${_legacy_cached_version}")
-        message(WARNING "Using deprecated cache variable MOLTBOOKMONITOR_VERSION. Prefer MOLTBOOKMONITOR_VERSION_OVERRIDE.")
-    endif()
 endif()
 
 set(MOLTBOOKMONITOR_BUNDLE_ID "com.moltbook.monitor" CACHE STRING "Bundle identifier")
