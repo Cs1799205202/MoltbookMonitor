@@ -343,8 +343,17 @@ void MonitorController::applyDownloadedUpdate()
         return;
     }
 
+    QString openedStatusMessage;
+#if defined(Q_OS_WIN)
+    openedStatusMessage = tr("Opened update package. Extract it and replace appMoltbookMonitor.exe with its accompanying DLL files.");
+#elif defined(Q_OS_MACOS)
+    openedStatusMessage = tr("Opened update package. Replace your existing appMoltbookMonitor.app with the extracted bundle.");
+#else
+    openedStatusMessage = tr("Opened update package. Extract and replace the app to finish updating.");
+#endif
+
     if (QDesktopServices::openUrl(QUrl::fromLocalFile(m_downloadedUpdatePath))) {
-        setUpdateStatus(tr("Opened update package. Extract and replace the app to finish updating."));
+        setUpdateStatus(openedStatusMessage);
         return;
     }
 

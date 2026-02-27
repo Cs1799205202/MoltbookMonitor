@@ -47,7 +47,7 @@ jobs:
           fi
 
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Tag '${GITHUB_REF_NAME}' does not match semantic version tag format (example: v0.1.7)."
+            echo "Tag '${GITHUB_REF_NAME}' does not match semantic version tag format (example: v0.1.8)."
             exit 1
           fi
 
@@ -95,7 +95,14 @@ jobs:
         shell: bash
         run: |
           archive="${{ steps.vars.outputs.artifact_basename }}.zip"
-          ditto -c -k --sequesterRsrc --keepParent dist "${archive}"
+          app_bundle="appMoltbookMonitor.app"
+          if [[ ! -d "dist/${app_bundle}" ]]; then
+            echo "Expected bundle dist/${app_bundle} was not found."
+            exit 1
+          fi
+
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "${app_bundle}" "../${archive}"
           echo "ARCHIVE_PATH=${archive}" >> "${GITHUB_ENV}"
 
       - name: Upload packaged artifact

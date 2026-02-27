@@ -9,7 +9,7 @@ if(SCCACHE)
     cmake_policy(SET CMP0141 NEW)
 endif()
 
-set(MOLTBOOKMONITOR_VERSION_DEFAULT "0.1.7")
+set(MOLTBOOKMONITOR_VERSION_DEFAULT "0.1.8")
 set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_DEFAULT}")
 set(MOLTBOOKMONITOR_VERSION_OVERRIDE "" CACHE STRING "Override application semantic version (for CI/release builds)")
 mark_as_advanced(MOLTBOOKMONITOR_VERSION_OVERRIDE)
@@ -91,10 +91,16 @@ target_link_libraries(appMoltbookMonitor
 )
 
 include(GNUInstallDirs)
+set(MOLTBOOKMONITOR_RUNTIME_DESTINATION ${CMAKE_INSTALL_BINDIR})
+if(WIN32)
+    # Portable Windows GUI zip should extract with .exe/.dll at archive root.
+    set(MOLTBOOKMONITOR_RUNTIME_DESTINATION .)
+endif()
+
 install(TARGETS appMoltbookMonitor
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RUNTIME DESTINATION ${MOLTBOOKMONITOR_RUNTIME_DESTINATION}
 )
 
 qt_generate_deploy_qml_app_script(
@@ -102,6 +108,11 @@ qt_generate_deploy_qml_app_script(
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
+if(WIN32)
+    # Keep Qt runtime deployment aligned with RUNTIME DESTINATION so dll/qt.conf
+    # are generated next to the .exe at archive root instead of under bin/.
+    install(CODE "set(QT_DEPLOY_BIN_DIR \".\")")
+endif()
 install(SCRIPT ${deploy_script})
 
 if(APPLE AND MOLTBOOKMONITOR_MACOS_ADHOC_CODESIGN)

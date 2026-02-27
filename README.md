@@ -84,7 +84,7 @@ Request header:
 ### Windows (Release)
 
 ```bash
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.7
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.8
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -92,7 +92,7 @@ cmake --install build --config Release --prefix dist
 ### macOS (Release)
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.7
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.8
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -112,16 +112,21 @@ GitHub Actions workflow: `.github/workflows/release.yml`
 
 Example release artifacts:
 
-- `MoltbookMonitor-0.1.7-windows-x64.zip`
-- `MoltbookMonitor-0.1.7-macos-arm64.zip`
+- `MoltbookMonitor-0.1.8-windows-x64.zip`
+- `MoltbookMonitor-0.1.8-macos-arm64.zip`
+
+Archive layout after extraction:
+
+- Windows: `appMoltbookMonitor.exe` and required runtime files are at the archive root (not nested under `bin/`).
+- macOS: `appMoltbookMonitor.app` is at the archive root (not nested under `dist/`).
 
 ## Versioning
 
 - Semantic versioning is used.
-- CMake default version is `0.1.7`.
+- CMake default version is `0.1.8`.
 - CI/release override uses `MOLTBOOKMONITOR_VERSION_OVERRIDE` to avoid stale cache drift.
 - Runtime app version is generated from CMake `PROJECT_VERSION` into `app_version.h`, then consumed by both startup and monitor logic.
-- Git tags use a `v` prefix (example: `v0.1.7`).
+- Git tags use a `v` prefix (example: `v0.1.8`).
 
 ## Local Data Storage
 
