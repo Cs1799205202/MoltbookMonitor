@@ -329,6 +329,21 @@ ApplicationWindow {
                     }
 
                     Button {
+                        text: monitorController.latestUpdateIgnored
+                              ? ("Ignored " + monitorController.latestVersion)
+                              : "Ignore This Version"
+                        visible: monitorController.latestVersion.length > 0
+                        enabled: monitorController.updateAvailable && !monitorController.latestUpdateIgnored
+                        onClicked: monitorController.ignoreLatestUpdate()
+                    }
+
+                    Button {
+                        text: "Clear Ignore"
+                        visible: monitorController.ignoredUpdateVersion.length > 0
+                        onClicked: monitorController.clearIgnoredUpdateVersion()
+                    }
+
+                    Button {
                         text: "Apply Downloaded Update"
                         visible: monitorController.updatePackageReady
                         enabled: monitorController.updatePackageReady

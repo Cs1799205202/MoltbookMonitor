@@ -26,6 +26,8 @@ class MonitorController : public QAbstractListModel
     Q_PROPERTY(bool updateCheckInProgress READ updateCheckInProgress NOTIFY updateCheckInProgressChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateAvailableChanged)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
+    Q_PROPERTY(QString ignoredUpdateVersion READ ignoredUpdateVersion NOTIFY ignoredUpdateVersionChanged)
+    Q_PROPERTY(bool latestUpdateIgnored READ latestUpdateIgnored NOTIFY latestUpdateIgnoredChanged)
     Q_PROPERTY(QString updateStatus READ updateStatus NOTIFY updateStatusChanged)
     Q_PROPERTY(bool updateDownloadAvailable READ updateDownloadAvailable NOTIFY updateDownloadAvailableChanged)
     Q_PROPERTY(bool updateDownloadInProgress READ updateDownloadInProgress NOTIFY updateDownloadInProgressChanged)
@@ -66,6 +68,8 @@ public:
     bool updateCheckInProgress() const;
     bool updateAvailable() const;
     QString latestVersion() const;
+    QString ignoredUpdateVersion() const;
+    bool latestUpdateIgnored() const;
     QString updateStatus() const;
     bool updateDownloadAvailable() const;
     bool updateDownloadInProgress() const;
@@ -81,6 +85,8 @@ public:
     Q_INVOKABLE QString currentShanghaiTimeString() const;
     Q_INVOKABLE void clearRequestLogs();
     Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void ignoreLatestUpdate();
+    Q_INVOKABLE void clearIgnoredUpdateVersion();
     Q_INVOKABLE void downloadLatestUpdate();
     Q_INVOKABLE void applyDownloadedUpdate();
     Q_INVOKABLE void openLatestReleasePage();
@@ -94,6 +100,8 @@ signals:
     void updateCheckInProgressChanged();
     void updateAvailableChanged();
     void latestVersionChanged();
+    void ignoredUpdateVersionChanged();
+    void latestUpdateIgnoredChanged();
     void updateStatusChanged();
     void updateDownloadAvailableChanged();
     void updateDownloadInProgressChanged();
@@ -140,12 +148,14 @@ private:
     static QString maskedApiKey(const QString &apiKey);
     static QString normalizedVersionTag(const QString &tag);
     static int compareVersionStrings(const QString &left, const QString &right);
+    void checkForUpdatesInternal(bool userInitiated);
 
     void setStatusMessage(const QString &message);
     void setUpdateStatus(const QString &message);
     void setUpdateCheckInProgress(bool value);
     void setUpdateAvailable(bool value);
     void setLatestVersion(const QString &value);
+    void setIgnoredUpdateVersion(const QString &value);
     void setUpdateDownloadAvailable(bool value);
     void setUpdateDownloadInProgress(bool value);
     void setUpdateDownloadProgress(double value);
@@ -192,6 +202,7 @@ private:
     QPointer<QNetworkReply> m_updateDownloadReply;
     std::unique_ptr<QFile> m_updateDownloadFile;
     QString m_latestVersion;
+    QString m_ignoredUpdateVersion;
     QString m_latestReleaseUrl;
     QString m_latestAssetUrl;
     QString m_latestAssetName;

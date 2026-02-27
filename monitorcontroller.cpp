@@ -52,6 +52,8 @@ MonitorController::MonitorController(QObject *parent)
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() { saveState(); });
 
     loadState();
+
+    QTimer::singleShot(3000, this, [this]() { checkForUpdatesInternal(false); });
 }
 
 int MonitorController::rowCount(const QModelIndex &parent) const
@@ -170,6 +172,19 @@ bool MonitorController::updateAvailable() const
 QString MonitorController::latestVersion() const
 {
     return m_latestVersion;
+}
+
+QString MonitorController::ignoredUpdateVersion() const
+{
+    return m_ignoredUpdateVersion;
+}
+
+bool MonitorController::latestUpdateIgnored() const
+{
+    if (m_latestVersion.isEmpty() || m_ignoredUpdateVersion.isEmpty()) {
+        return false;
+    }
+    return compareVersionStrings(m_latestVersion, m_ignoredUpdateVersion) == 0;
 }
 
 QString MonitorController::updateStatus() const
@@ -382,8 +397,54 @@ void MonitorController::clearRequestLogs()
 
 void MonitorController::checkForUpdates()
 {
+    checkForUpdatesInternal(true);
+}
+
+void MonitorController::ignoreLatestUpdate()
+{
+    if (m_latestVersion.isEmpty()) {
+        setUpdateStatus(tr("No latest version metadata is available yet."));
+        return;
+    }
+    if (compareVersionStrings(m_latestVersion, currentVersion()) <= 0) {
+        setUpdateStatus(tr("Current version is already up to date."));
+        return;
+    }
+
+    setIgnoredUpdateVersion(m_latestVersion);
+    setUpdateAvailable(false);
+    setUpdateDownloadAvailable(false);
+    m_downloadedUpdatePath.clear();
+    setUpdatePackageReady(false);
+    setUpdateDownloadProgress(0.0);
+    scheduleSaveState();
+    setUpdateStatus(tr("Ignored update %1.").arg(m_latestVersion));
+}
+
+void MonitorController::clearIgnoredUpdateVersion()
+{
+    if (m_ignoredUpdateVersion.isEmpty()) {
+        return;
+    }
+
+    const QString previous = m_ignoredUpdateVersion;
+    setIgnoredUpdateVersion(QString());
+    scheduleSaveState();
+
+    if (!m_latestVersion.isEmpty() && compareVersionStrings(m_latestVersion, currentVersion()) > 0) {
+        setUpdateAvailable(true);
+        setUpdateDownloadAvailable(!m_latestAssetUrl.isEmpty());
+    }
+
+    setUpdateStatus(tr("Cleared ignored update version %1.").arg(previous));
+}
+
+void MonitorController::checkForUpdatesInternal(bool userInitiated)
+{
     if (m_updateCheckReply) {
-        setUpdateStatus(tr("Update check is already running."));
+        if (userInitiated) {
+            setUpdateStatus(tr("Update check is already running."));
+        }
         return;
     }
 
@@ -393,14 +454,16 @@ void MonitorController::checkForUpdates()
     request.setRawHeader("X-GitHub-Api-Version", QByteArrayLiteral("2022-11-28"));
 
     setUpdateCheckInProgress(true);
-    setUpdateStatus(tr("Checking for updates..."));
+    if (userInitiated) {
+        setUpdateStatus(tr("Checking for updates..."));
+    }
     setUpdateDownloadAvailable(false);
 
     changePendingRequests(+1);
     QNetworkReply *reply = m_network.get(request);
     m_updateCheckReply = reply;
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, userInitiated]() {
         const auto finalize = [this, reply]() {
             m_updateCheckReply = nullptr;
             setUpdateCheckInProgress(false);
@@ -413,12 +476,16 @@ void MonitorController::checkForUpdates()
         const QString networkError = reply->error() == QNetworkReply::NoError ? QString() : reply->errorString();
 
         if (reply->error() != QNetworkReply::NoError) {
-            setUpdateStatus(tr("Update check failed: %1").arg(networkError));
+            if (userInitiated) {
+                setUpdateStatus(tr("Update check failed: %1").arg(networkError));
+            }
             finalize();
             return;
         }
         if (statusCode >= 400) {
-            setUpdateStatus(tr("Update check failed (HTTP %1).").arg(statusCode));
+            if (userInitiated) {
+                setUpdateStatus(tr("Update check failed (HTTP %1).").arg(statusCode));
+            }
             finalize();
             return;
         }
@@ -426,7 +493,9 @@ void MonitorController::checkForUpdates()
         QJsonParseError parseError;
         const QJsonDocument doc = QJsonDocument::fromJson(payload, &parseError);
         if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-            setUpdateStatus(tr("Update check failed: invalid release metadata."));
+            if (userInitiated) {
+                setUpdateStatus(tr("Update check failed: invalid release metadata."));
+            }
             finalize();
             return;
         }
@@ -434,7 +503,9 @@ void MonitorController::checkForUpdates()
         const QJsonObject root = doc.object();
         const QString latestTag = normalizedVersionTag(root.value(QStringLiteral("tag_name")).toString());
         if (latestTag.isEmpty()) {
-            setUpdateStatus(tr("Update check failed: missing latest version tag."));
+            if (userInitiated) {
+                setUpdateStatus(tr("Update check failed: missing latest version tag."));
+            }
             finalize();
             return;
         }
@@ -486,16 +557,27 @@ void MonitorController::checkForUpdates()
         m_latestAssetUrl = matchedAssetUrl;
 
         const int cmp = compareVersionStrings(latestTag, currentVersion());
+        const bool ignored = !m_ignoredUpdateVersion.isEmpty()
+            && compareVersionStrings(latestTag, m_ignoredUpdateVersion) == 0;
+
         if (cmp > 0) {
-            setUpdateAvailable(true);
-            setUpdateDownloadAvailable(!m_latestAssetUrl.isEmpty());
+            setUpdateAvailable(!ignored);
+            setUpdateDownloadAvailable(!ignored && !m_latestAssetUrl.isEmpty());
             m_downloadedUpdatePath.clear();
             setUpdatePackageReady(false);
             setUpdateDownloadProgress(0.0);
-            if (m_latestAssetUrl.isEmpty()) {
+
+            if (ignored) {
+                if (userInitiated) {
+                    setUpdateStatus(tr("Update %1 is available but currently ignored.").arg(latestTag));
+                }
+            } else if (m_latestAssetUrl.isEmpty()) {
                 setUpdateStatus(tr("Update %1 is available, but no downloadable package was found.").arg(latestTag));
             } else {
                 setUpdateStatus(tr("Update %1 is available.").arg(latestTag));
+                if (!userInitiated) {
+                    emit notificationRaised(tr("New version %1 is available. Click Check Update to download.").arg(latestTag));
+                }
             }
         } else if (cmp < 0) {
             setUpdateAvailable(false);
@@ -503,14 +585,18 @@ void MonitorController::checkForUpdates()
             m_downloadedUpdatePath.clear();
             setUpdatePackageReady(false);
             setUpdateDownloadProgress(0.0);
-            setUpdateStatus(tr("Current build (%1) is newer than latest release (%2).").arg(currentVersion(), latestTag));
+            if (userInitiated) {
+                setUpdateStatus(tr("Current build (%1) is newer than latest release (%2).").arg(currentVersion(), latestTag));
+            }
         } else {
             setUpdateAvailable(false);
             setUpdateDownloadAvailable(false);
             m_downloadedUpdatePath.clear();
             setUpdatePackageReady(false);
             setUpdateDownloadProgress(0.0);
-            setUpdateStatus(tr("You are up to date (%1).").arg(currentVersion()));
+            if (userInitiated) {
+                setUpdateStatus(tr("You are up to date (%1).").arg(currentVersion()));
+            }
         }
 
         finalize();
@@ -955,6 +1041,18 @@ void MonitorController::setLatestVersion(const QString &value)
     }
     m_latestVersion = value;
     emit latestVersionChanged();
+    emit latestUpdateIgnoredChanged();
+}
+
+void MonitorController::setIgnoredUpdateVersion(const QString &value)
+{
+    const QString normalized = normalizedVersionTag(value);
+    if (normalized == m_ignoredUpdateVersion) {
+        return;
+    }
+    m_ignoredUpdateVersion = normalized;
+    emit ignoredUpdateVersionChanged();
+    emit latestUpdateIgnoredChanged();
 }
 
 void MonitorController::setUpdateDownloadAvailable(bool value)
@@ -1326,6 +1424,13 @@ void MonitorController::loadState()
         emit apiKeyChanged();
     }
 
+    const QString loadedIgnoredVersion = normalizedVersionTag(root.value(QStringLiteral("ignored_update_version")).toString());
+    if (!loadedIgnoredVersion.isEmpty()) {
+        m_ignoredUpdateVersion = loadedIgnoredVersion;
+        emit ignoredUpdateVersionChanged();
+        emit latestUpdateIgnoredChanged();
+    }
+
     QVector<AgentEntry> loadedAgents;
     const QJsonArray agentsArray = root.value(QStringLiteral("agents")).toArray();
     loadedAgents.reserve(agentsArray.size());
@@ -1417,6 +1522,7 @@ void MonitorController::saveState() const
     QJsonObject root;
     root.insert(QStringLiteral("version"), kStateVersion);
     root.insert(QStringLiteral("api_key"), m_apiKey);
+    root.insert(QStringLiteral("ignored_update_version"), m_ignoredUpdateVersion);
     root.insert(QStringLiteral("saved_at_utc"), QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
 
     QJsonArray agentsArray;
