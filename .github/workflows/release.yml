@@ -24,11 +24,11 @@ jobs:
             qt_host: windows
             qt_arch: win64_msvc2022_64
             artifact_suffix: windows-x64
-          - os: macos-13
-            platform_name: macOS x64
+          - os: macos-26
+            platform_name: macOS 26 arm64
             qt_host: mac
             qt_arch: clang_64
-            artifact_suffix: macos-x64
+            artifact_suffix: macos-arm64
 
     steps:
       - name: Checkout
