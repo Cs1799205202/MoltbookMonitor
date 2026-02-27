@@ -35,6 +35,22 @@ MoltbookMonitor is a desktop monitoring tool for tracking Moltbook agent activit
   - `Qt6::Network`
   - `Qt6::Widgets`
 
+## Project Structure
+
+- `src/app/main.cpp`
+  - Qt application startup, system tray integration, QML engine bootstrap.
+- `src/monitor/`
+  - `monitorcontroller.h`: model/API boundary exposed to QML.
+  - `monitorcontroller_model.cpp`: list-model roles, countdown logic, status properties.
+  - `monitorcontroller_agents.cpp`: add/remove/refresh agents and snapshot merge logic.
+  - `monitorcontroller_profile.cpp`: Moltbook API request, response parsing, request logging.
+  - `monitorcontroller_updates.cpp`: GitHub release check, update package download/apply flow.
+  - `monitorcontroller_state.cpp`: local persistence load/save and state file path handling.
+- `qml/`
+  - `Main.qml`: composition shell only.
+  - `components/`: UI panels and delegates (`AgentCard`, `RequestLogPanel`, etc.).
+  - `js/UiHelpers.js`: shared UI helper functions (countdown colors, log filtering).
+
 ## API Integration
 
 The app fetches profile data from:
@@ -58,7 +74,7 @@ Request header:
 ### Windows (Release)
 
 ```bash
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION=0.1.2
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.6
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -66,7 +82,7 @@ cmake --install build --config Release --prefix dist
 ### macOS (Release)
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION=0.1.2
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.6
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -86,14 +102,16 @@ GitHub Actions workflow: `.github/workflows/release.yml`
 
 Example release artifacts:
 
-- `MoltbookMonitor-0.1.2-windows-x64.zip`
-- `MoltbookMonitor-0.1.2-macos-arm64.zip`
+- `MoltbookMonitor-0.1.6-windows-x64.zip`
+- `MoltbookMonitor-0.1.6-macos-arm64.zip`
 
 ## Versioning
 
 - Semantic versioning is used.
-- CMake version is controlled by `MOLTBOOKMONITOR_VERSION`.
-- Git tags use a `v` prefix (example: `v0.1.2`).
+- CMake default version is `0.1.6`.
+- CI/release override uses `MOLTBOOKMONITOR_VERSION_OVERRIDE` to avoid stale cache drift.
+- Runtime app version is generated from CMake `PROJECT_VERSION` into `app_version.h`, then consumed by both startup and monitor logic.
+- Git tags use a `v` prefix (example: `v0.1.6`).
 
 ## Local Data Storage
 

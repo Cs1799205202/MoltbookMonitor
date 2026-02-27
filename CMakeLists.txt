@@ -1,8 +1,28 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(MOLTBOOKMONITOR_VERSION "0.1.0" CACHE STRING "Application semantic version")
+set(MOLTBOOKMONITOR_VERSION_DEFAULT "0.1.6")
+set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_DEFAULT}")
+set(MOLTBOOKMONITOR_VERSION_OVERRIDE "" CACHE STRING "Override application semantic version (for CI/release builds)")
+mark_as_advanced(MOLTBOOKMONITOR_VERSION_OVERRIDE)
+
+# Backward compatibility for legacy -DMOLTBOOKMONITOR_VERSION usage.
+# Ignore stale cache value from historical default 0.1.0 to avoid version drift.
+if(MOLTBOOKMONITOR_VERSION_OVERRIDE)
+    set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_OVERRIDE}")
+elseif(DEFINED CACHE{MOLTBOOKMONITOR_VERSION})
+    set(_legacy_cached_version "$CACHE{MOLTBOOKMONITOR_VERSION}")
+    if(NOT _legacy_cached_version STREQUAL "" AND NOT _legacy_cached_version STREQUAL "0.1.0")
+        set(MOLTBOOKMONITOR_VERSION "${_legacy_cached_version}")
+        message(WARNING "Using deprecated cache variable MOLTBOOKMONITOR_VERSION. Prefer MOLTBOOKMONITOR_VERSION_OVERRIDE.")
+    endif()
+endif()
+
 set(MOLTBOOKMONITOR_BUNDLE_ID "com.moltbook.monitor" CACHE STRING "Bundle identifier")
 option(MOLTBOOKMONITOR_MACOS_ADHOC_CODESIGN "Ad-hoc sign macOS app bundle after deployment" ON)
+
+if(NOT MOLTBOOKMONITOR_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+([-.][0-9A-Za-z.-]+)?$")
+    message(FATAL_ERROR "MOLTBOOKMONITOR_VERSION must be semantic versioning-compatible, got: ${MOLTBOOKMONITOR_VERSION}")
+endif()
 
 project(MoltbookMonitor VERSION ${MOLTBOOKMONITOR_VERSION} LANGUAGES CXX)
 
@@ -21,20 +41,43 @@ find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network Widgets)
 qt_standard_project_setup(REQUIRES 6.10)
 
 qt_add_executable(appMoltbookMonitor
-    main.cpp
-    monitorcontroller.cpp
-    monitorcontroller.h
+    src/app/main.cpp
+    src/monitor/monitorcontroller.h
+    src/monitor/monitorcontroller_model.cpp
+    src/monitor/monitorcontroller_agents.cpp
+    src/monitor/monitorcontroller_profile.cpp
+    src/monitor/monitorcontroller_updates.cpp
+    src/monitor/monitorcontroller_state.cpp
 )
 
-target_compile_definitions(appMoltbookMonitor
-    PRIVATE APP_VERSION="${PROJECT_VERSION}"
+set(MOLTBOOKMONITOR_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${MOLTBOOKMONITOR_GENERATED_DIR}")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/AppVersion.h.in"
+    "${MOLTBOOKMONITOR_GENERATED_DIR}/app_version.h"
+    @ONLY
+)
+
+target_include_directories(appMoltbookMonitor
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${MOLTBOOKMONITOR_GENERATED_DIR}
 )
 
 qt_add_qml_module(appMoltbookMonitor
     URI MoltbookMonitor
     VERSION 1.0
     QML_FILES
-        Main.qml
+        qml/Main.qml
+        qml/components/AgentCard.qml
+        qml/components/AgentListPanel.qml
+        qml/components/MonitorControlPanel.qml
+        qml/components/NotificationBanner.qml
+        qml/components/NotificationsPanel.qml
+        qml/components/RequestLogPanel.qml
+        qml/components/StatusMessagePanel.qml
+    RESOURCES
+        qml/js/UiHelpers.js
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

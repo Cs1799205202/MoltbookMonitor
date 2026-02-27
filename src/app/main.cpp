@@ -5,14 +5,15 @@
 #include <QSystemTrayIcon>
 #include <QStyle>
 
-#include "monitorcontroller.h"
+#include "app_version.h"
+#include "monitor/monitorcontroller.h"
 
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("MoltbookMonitor"));
     QCoreApplication::setApplicationName(QStringLiteral("Moltbook Agent Activity Monitor"));
-    QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
+    QCoreApplication::setApplicationVersion(QString::fromLatin1(MoltbookMonitor::BuildInfo::kAppVersion));
 
     MonitorController monitorController;
     QSystemTrayIcon trayIcon;

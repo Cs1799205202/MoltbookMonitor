@@ -1,16 +1,20 @@
 #pragma once
 
 #include <QAbstractListModel>
+#include <QByteArray>
 #include <QDateTime>
 #include <QFile>
+#include <QHash>
 #include <QNetworkAccessManager>
 #include <QPointer>
 #include <QSet>
+#include <QString>
 #include <QTimeZone>
 #include <QTimer>
 #include <QVariantList>
 #include <QVector>
 #include <functional>
+#include <limits>
 #include <memory>
 
 class QNetworkReply;
@@ -109,6 +113,15 @@ signals:
     void updatePackageReadyChanged();
 
 private:
+    static constexpr int kMaxHistoryEntries = 200;
+    static constexpr int kMaxRequestLogs = 300;
+    static constexpr int kStateVersion = 1;
+    static constexpr qint64 kMissingTimestamp = std::numeric_limits<qint64>::min();
+    static inline constexpr auto kLatestReleaseApiUrl =
+        "https://api.github.com/repos/Cs1799205202/MoltbookMonitor/releases/latest";
+    static inline constexpr auto kReleasesPageUrl =
+        "https://github.com/Cs1799205202/MoltbookMonitor/releases";
+
     struct OperationEntry {
         QString type;
         QString detail;

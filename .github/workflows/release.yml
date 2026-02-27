@@ -41,14 +41,18 @@ jobs:
         id: vars
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            CMAKE_APP_VERSION="${GITHUB_REF_NAME#v}"
-            ARTIFACT_VERSION="${CMAKE_APP_VERSION}"
-          else
-            BASE_VERSION="0.1.0"
-            CMAKE_APP_VERSION="${BASE_VERSION}"
-            ARTIFACT_VERSION="${BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}"
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            echo "This workflow only supports tag builds."
+            exit 1
           fi
+
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag '${GITHUB_REF_NAME}' does not match semantic version tag format (example: v0.1.6)."
+            exit 1
+          fi
+
+          CMAKE_APP_VERSION="${GITHUB_REF_NAME#v}"
+          ARTIFACT_VERSION="${CMAKE_APP_VERSION}"
 
           ARTIFACT_BASENAME="MoltbookMonitor-${ARTIFACT_VERSION}-${{ matrix.artifact_suffix }}"
           echo "cmake_app_version=${CMAKE_APP_VERSION}" >> "${GITHUB_OUTPUT}"
@@ -60,7 +64,7 @@ jobs:
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/dist"
-          -DMOLTBOOKMONITOR_VERSION=${{ steps.vars.outputs.cmake_app_version }}
+          -DMOLTBOOKMONITOR_VERSION_OVERRIDE=${{ steps.vars.outputs.cmake_app_version }}
 
       - name: Build
         shell: bash
@@ -118,6 +122,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           files: release-assets/**/*.zip
           fail_on_unmatched_files: true
           generate_release_notes: true
