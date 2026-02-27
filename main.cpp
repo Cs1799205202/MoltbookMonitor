@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("MoltbookMonitor"));
     QCoreApplication::setApplicationName(QStringLiteral("Moltbook Agent Activity Monitor"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
 
     MonitorController monitorController;
     QSystemTrayIcon trayIcon;
