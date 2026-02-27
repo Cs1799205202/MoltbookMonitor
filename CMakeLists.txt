@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(MOLTBOOKMONITOR_VERSION_DEFAULT "0.1.6")
+find_program(SCCACHE sccache)
+if(SCCACHE)
+    message(STATUS "Using sccache for C/C++ compilation")
+    set(CMAKE_C_COMPILER_LAUNCHER ${SCCACHE})
+    set(CMAKE_CXX_COMPILER_LAUNCHER ${SCCACHE})
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+    cmake_policy(SET CMP0141 NEW)
+endif()
+
+set(MOLTBOOKMONITOR_VERSION_DEFAULT "0.1.7")
 set(MOLTBOOKMONITOR_VERSION "${MOLTBOOKMONITOR_VERSION_DEFAULT}")
 set(MOLTBOOKMONITOR_VERSION_OVERRIDE "" CACHE STRING "Override application semantic version (for CI/release builds)")
 mark_as_advanced(MOLTBOOKMONITOR_VERSION_OVERRIDE)
@@ -21,13 +30,6 @@ project(MoltbookMonitor VERSION ${MOLTBOOKMONITOR_VERSION} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# find_program(SCCACHE sccache REQUIRED)
-
-# set(CMAKE_C_COMPILER_LAUNCHER ${SCCACHE})
-# set(CMAKE_CXX_COMPILER_LAUNCHER ${SCCACHE})
-# set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
-# cmake_policy(SET CMP0141 NEW)
-
 find_package(Qt6 6.10 REQUIRED COMPONENTS Quick Network Widgets)
 
 qt_standard_project_setup(REQUIRES 6.10)
@@ -40,6 +42,7 @@ qt_add_executable(appMoltbookMonitor
     src/monitor/monitorcontroller_profile.cpp
     src/monitor/monitorcontroller_updates.cpp
     src/monitor/monitorcontroller_state.cpp
+    src/monitor/monitorcontroller_importexport.cpp
 )
 
 set(MOLTBOOKMONITOR_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")

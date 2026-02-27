@@ -197,6 +197,40 @@ QString MonitorController::normalizedId(const QString &agentId)
     return agentId.trimmed().toLower();
 }
 
+QString MonitorController::normalizedHumanOwner(const QString &humanOwnerName)
+{
+    return humanOwnerName.simplified().toLower();
+}
+
+QString MonitorController::displayHumanOwner(const QString &humanOwnerName)
+{
+    const QString trimmed = humanOwnerName.trimmed();
+    return trimmed.isEmpty() ? QStringLiteral("Unassigned") : trimmed;
+}
+
+bool MonitorController::lessByOwnerGrouping(const AgentEntry &left, const AgentEntry &right)
+{
+    const QString leftOwner = normalizedHumanOwner(left.humanOwnerName);
+    const QString rightOwner = normalizedHumanOwner(right.humanOwnerName);
+    const bool leftAssigned = !leftOwner.isEmpty();
+    const bool rightAssigned = !rightOwner.isEmpty();
+
+    if (leftAssigned != rightAssigned) {
+        return leftAssigned;
+    }
+    if (leftOwner != rightOwner) {
+        return leftOwner < rightOwner;
+    }
+
+    const QString leftId = normalizedId(left.agentId);
+    const QString rightId = normalizedId(right.agentId);
+    if (leftId != rightId) {
+        return leftId < rightId;
+    }
+
+    return left.agentId < right.agentId;
+}
+
 QString MonitorController::summarize(const QString &text, int maxLen)
 {
     const QString cleaned = text.simplified();

@@ -9,10 +9,17 @@ MoltbookMonitor is a desktop monitoring tool for tracking Moltbook agent activit
 
 - Monitors multiple Moltbook agents by `Agent ID`.
 - Verifies an agent before adding it to the monitor list.
+- Supports optional `Human Owner` for each agent and groups agents by human owner in the UI.
 - Tracks both:
   - last post timestamp
   - last reply timestamp
 - Supports independent inactivity thresholds for posts and replies (in minutes).
+- Supports batch import/export through Excel-friendly CSV:
+  - `agent_id`
+  - `post_threshold_minutes`
+  - `reply_threshold_minutes`
+  - `human_owner_name` (optional)
+  - Import uses upsert semantics: existing agents are updated instead of skipped.
 - Updates countdown status live and highlights overdue agents.
 - Raises notifications when an agent exceeds a threshold.
 - Shows request/response logs with keyword + status filtering.
@@ -74,7 +81,7 @@ Request header:
 ### Windows (Release)
 
 ```bash
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.6
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.7
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -82,7 +89,7 @@ cmake --install build --config Release --prefix dist
 ### macOS (Release)
 
 ```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.6
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOLTBOOKMONITOR_VERSION_OVERRIDE=0.1.7
 cmake --build build --config Release --parallel
 cmake --install build --config Release --prefix dist
 ```
@@ -102,16 +109,16 @@ GitHub Actions workflow: `.github/workflows/release.yml`
 
 Example release artifacts:
 
-- `MoltbookMonitor-0.1.6-windows-x64.zip`
-- `MoltbookMonitor-0.1.6-macos-arm64.zip`
+- `MoltbookMonitor-0.1.7-windows-x64.zip`
+- `MoltbookMonitor-0.1.7-macos-arm64.zip`
 
 ## Versioning
 
 - Semantic versioning is used.
-- CMake default version is `0.1.6`.
+- CMake default version is `0.1.7`.
 - CI/release override uses `MOLTBOOKMONITOR_VERSION_OVERRIDE` to avoid stale cache drift.
 - Runtime app version is generated from CMake `PROJECT_VERSION` into `app_version.h`, then consumed by both startup and monitor logic.
-- Git tags use a `v` prefix (example: `v0.1.6`).
+- Git tags use a `v` prefix (example: `v0.1.7`).
 
 ## Local Data Storage
 

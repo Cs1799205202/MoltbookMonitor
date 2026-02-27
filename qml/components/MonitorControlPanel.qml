@@ -90,10 +90,24 @@ Frame {
                 value: 120
             }
 
+            Label {
+                text: "Human owner"
+            }
+
+            TextField {
+                id: humanOwnerInput
+                Layout.preferredWidth: 220
+                placeholderText: "Optional human owner"
+                onAccepted: addAgentButton.clicked()
+            }
+
             Button {
                 id: addAgentButton
                 text: "Verify & Add"
-                onClicked: monitorController.addAgent(agentIdInput.text, postThresholdInput.value, replyThresholdInput.value)
+                onClicked: monitorController.addAgent(agentIdInput.text,
+                                                      postThresholdInput.value,
+                                                      replyThresholdInput.value,
+                                                      humanOwnerInput.text)
             }
 
             Label {
@@ -101,6 +115,33 @@ Frame {
                 horizontalAlignment: Text.AlignRight
                 color: "#4a5568"
                 text: "Timezone: Asia/Shanghai (CST)"
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 10
+
+            Label {
+                text: "Batch tools"
+                font.bold: true
+            }
+
+            Button {
+                text: "Import CSV"
+                onClicked: monitorController.importAgentsFromCsv()
+            }
+
+            Button {
+                text: "Export CSV"
+                onClicked: monitorController.exportAgentsToCsv()
+            }
+
+            Label {
+                Layout.fillWidth: true
+                color: "#4a5568"
+                text: "CSV columns: agent_id, post_threshold_minutes, reply_threshold_minutes, human_owner_name"
+                elide: Text.ElideRight
             }
         }
 

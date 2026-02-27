@@ -19,25 +19,27 @@ Frame {
         spacing: 10
         model: monitorController
         clip: true
+        section.property: "humanOwnerGroup"
+        section.criteria: ViewSection.FullString
+        section.delegate: Rectangle {
+            width: agentList.width - 12
+            height: 34
+            radius: 8
+            color: "#eef2f8"
+            border.color: "#d8dde3"
+
+            Label {
+                anchors.fill: parent
+                anchors.leftMargin: 12
+                verticalAlignment: Text.AlignVCenter
+                text: "Human Owner: " + section
+                font.bold: true
+                color: "#243b53"
+            }
+        }
 
         delegate: AgentCard {
             width: agentList.width - 12
-            rowIndex: index
-            agentId: model.agentId
-            ownerId: model.ownerId
-            postThresholdMinutes: model.postThresholdMinutes
-            replyThresholdMinutes: model.replyThresholdMinutes
-            lastPostTime: model.lastPostTime
-            lastReplyTime: model.lastReplyTime
-            postRemainingSeconds: model.postRemainingSeconds
-            replyRemainingSeconds: model.replyRemainingSeconds
-            postCountdownText: model.postCountdownText
-            replyCountdownText: model.replyCountdownText
-            postOverdue: model.postOverdue
-            replyOverdue: model.replyOverdue
-            history: model.history
-            lastSyncError: model.lastSyncError
-            lastRefreshTime: model.lastRefreshTime
         }
     }
 

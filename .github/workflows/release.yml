@@ -47,7 +47,7 @@ jobs:
           fi
 
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Tag '${GITHUB_REF_NAME}' does not match semantic version tag format (example: v0.1.6)."
+            echo "Tag '${GITHUB_REF_NAME}' does not match semantic version tag format (example: v0.1.7)."
             exit 1
           fi
 

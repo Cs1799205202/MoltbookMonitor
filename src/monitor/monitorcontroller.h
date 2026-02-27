@@ -44,6 +44,8 @@ public:
     enum Roles {
         AgentIdRole = Qt::UserRole + 1,
         OwnerIdRole,
+        HumanOwnerNameRole,
+        HumanOwnerGroupRole,
         PostThresholdMinutesRole,
         ReplyThresholdMinutesRole,
         LastPostTimeRole,
@@ -81,13 +83,24 @@ public:
     bool updatePackageReady() const;
 
     Q_INVOKABLE void setApiKey(const QString &apiKey);
-    Q_INVOKABLE void addAgent(const QString &agentId, int postThresholdMinutes, int replyThresholdMinutes);
+    Q_INVOKABLE void addAgent(const QString &agentId,
+                              int postThresholdMinutes,
+                              int replyThresholdMinutes,
+                              const QString &humanOwnerName);
     Q_INVOKABLE void removeAgent(int row);
     Q_INVOKABLE void updateThresholds(int row, int postThresholdMinutes, int replyThresholdMinutes);
+    Q_INVOKABLE void updateAgentConfig(int row,
+                                       int postThresholdMinutes,
+                                       int replyThresholdMinutes,
+                                       const QString &humanOwnerName);
     Q_INVOKABLE void refreshAgent(int row);
     Q_INVOKABLE void refreshAll();
     Q_INVOKABLE QString currentShanghaiTimeString() const;
     Q_INVOKABLE void clearRequestLogs();
+    Q_INVOKABLE void importAgentsFromCsv();
+    Q_INVOKABLE void exportAgentsToCsv();
+    Q_INVOKABLE void importAgentsFromCsvPath(const QString &filePath);
+    Q_INVOKABLE void exportAgentsToCsvPath(const QString &filePath);
     Q_INVOKABLE void checkForUpdates();
     Q_INVOKABLE void ignoreLatestUpdate();
     Q_INVOKABLE void clearIgnoredUpdateVersion();
@@ -115,7 +128,7 @@ signals:
 private:
     static constexpr int kMaxHistoryEntries = 200;
     static constexpr int kMaxRequestLogs = 300;
-    static constexpr int kStateVersion = 1;
+    static constexpr int kStateVersion = 2;
     static constexpr qint64 kMissingTimestamp = std::numeric_limits<qint64>::min();
     static inline constexpr auto kLatestReleaseApiUrl =
         "https://api.github.com/repos/Cs1799205202/MoltbookMonitor/releases/latest";
@@ -131,6 +144,7 @@ private:
     struct AgentEntry {
         QString agentId;
         QString ownerId;
+        QString humanOwnerName;
         int postThresholdMinutes = 60;
         int replyThresholdMinutes = 60;
         QDateTime lastPostUtc;
@@ -156,6 +170,9 @@ private:
     ProfileSnapshot parseProfileResponse(const QByteArray &payload) const;
     static QDateTime parseIsoDate(const QString &value);
     static QString normalizedId(const QString &agentId);
+    static QString normalizedHumanOwner(const QString &humanOwnerName);
+    static QString displayHumanOwner(const QString &humanOwnerName);
+    static bool lessByOwnerGrouping(const AgentEntry &left, const AgentEntry &right);
     static QString summarize(const QString &text, int maxLen = 90);
     static QString operationKey(const OperationEntry &entry);
     static QString maskedApiKey(const QString &apiKey);
@@ -176,6 +193,9 @@ private:
     QString preferredUpdateAssetSuffix() const;
     QString updateDownloadPathForAsset(const QString &assetName) const;
     int findAgentRow(const QString &agentId) const;
+    int insertionRowForAgent(const AgentEntry &entry) const;
+    void insertAgentSorted(AgentEntry entry);
+    void sortAgentsForGrouping();
     void applySnapshotToAgent(int row, const ProfileSnapshot &snapshot);
     QVariantList buildHistoryVariant(const QVector<OperationEntry> &history) const;
     QString payloadForLog(const QByteArray &payload) const;
@@ -214,6 +234,7 @@ private:
     QPointer<QNetworkReply> m_updateCheckReply;
     QPointer<QNetworkReply> m_updateDownloadReply;
     std::unique_ptr<QFile> m_updateDownloadFile;
+    bool m_batchImportInProgress = false;
     QString m_latestVersion;
     QString m_ignoredUpdateVersion;
     QString m_latestReleaseUrl;

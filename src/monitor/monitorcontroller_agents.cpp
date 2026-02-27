@@ -2,9 +2,13 @@
 
 #include <algorithm>
 
-void MonitorController::addAgent(const QString &agentId, int postThresholdMinutes, int replyThresholdMinutes)
+void MonitorController::addAgent(const QString &agentId,
+                                 int postThresholdMinutes,
+                                 int replyThresholdMinutes,
+                                 const QString &humanOwnerName)
 {
     const QString requestedId = agentId.trimmed();
+    const QString requestedHumanOwner = humanOwnerName.trimmed();
     if (requestedId.isEmpty()) {
         setStatusMessage(tr("Agent ID is required."));
         return;
@@ -27,7 +31,7 @@ void MonitorController::addAgent(const QString &agentId, int postThresholdMinute
     m_pendingAdds.insert(normalized);
     setStatusMessage(tr("Verifying agent %1...").arg(requestedId));
 
-    requestProfile(requestedId, [this, requestedId, postThresholdMinutes, replyThresholdMinutes, normalized](ProfileSnapshot snapshot) {
+    requestProfile(requestedId, [this, requestedId, requestedHumanOwner, postThresholdMinutes, replyThresholdMinutes, normalized](ProfileSnapshot snapshot) {
         m_pendingAdds.remove(normalized);
 
         if (!snapshot.ok) {
@@ -43,6 +47,7 @@ void MonitorController::addAgent(const QString &agentId, int postThresholdMinute
         AgentEntry entry;
         entry.agentId = snapshot.agentId.isEmpty() ? requestedId : snapshot.agentId;
         entry.ownerId = snapshot.ownerId.isEmpty() ? QStringLiteral("unknown") : snapshot.ownerId;
+        entry.humanOwnerName = requestedHumanOwner;
         entry.postThresholdMinutes = postThresholdMinutes;
         entry.replyThresholdMinutes = replyThresholdMinutes;
         entry.lastPostUtc = snapshot.lastPostUtc;
@@ -50,11 +55,11 @@ void MonitorController::addAgent(const QString &agentId, int postThresholdMinute
         entry.history = snapshot.operations;
         entry.lastRefreshUtc = QDateTime::currentDateTimeUtc();
 
-        beginInsertRows(QModelIndex(), m_agents.size(), m_agents.size());
-        m_agents.push_back(std::move(entry));
-        endInsertRows();
+        const QString finalAgentId = entry.agentId;
+        const QString ownerDisplay = displayHumanOwner(entry.humanOwnerName);
+        insertAgentSorted(std::move(entry));
 
-        setStatusMessage(tr("Added agent %1 (owner: %2).").arg(m_agents.back().agentId, m_agents.back().ownerId));
+        setStatusMessage(tr("Added agent %1 (human owner: %2).").arg(finalAgentId, ownerDisplay));
         tickCountdowns();
         scheduleSaveState();
     });
@@ -80,14 +85,32 @@ void MonitorController::updateThresholds(int row, int postThresholdMinutes, int 
     if (row < 0 || row >= m_agents.size()) {
         return;
     }
+
+    updateAgentConfig(row, postThresholdMinutes, replyThresholdMinutes, m_agents.at(row).humanOwnerName);
+}
+
+void MonitorController::updateAgentConfig(int row,
+                                          int postThresholdMinutes,
+                                          int replyThresholdMinutes,
+                                          const QString &humanOwnerName)
+{
+    if (row < 0 || row >= m_agents.size()) {
+        return;
+    }
     if (postThresholdMinutes < 1 || replyThresholdMinutes < 1) {
         setStatusMessage(tr("Thresholds must be at least 1 minute."));
         return;
     }
 
     AgentEntry &entry = m_agents[row];
+    const QString agentIdForStatus = entry.agentId;
+    const QString previousOwner = entry.humanOwnerName;
+    const QString updatedOwner = humanOwnerName.trimmed();
+    const bool ownerChanged = previousOwner != updatedOwner;
+
     entry.postThresholdMinutes = postThresholdMinutes;
     entry.replyThresholdMinutes = replyThresholdMinutes;
+    entry.humanOwnerName = updatedOwner;
 
     if (remainingSeconds(entry.lastPostUtc, entry.postThresholdMinutes) >= 0) {
         entry.postAlertSent = false;
@@ -96,20 +119,29 @@ void MonitorController::updateThresholds(int row, int postThresholdMinutes, int 
         entry.replyAlertSent = false;
     }
 
-    const QModelIndex modelIndex = index(row, 0);
-    emit dataChanged(modelIndex, modelIndex, {
-                                            PostThresholdMinutesRole,
-                                            ReplyThresholdMinutesRole,
-                                            PostRemainingSecondsRole,
-                                            ReplyRemainingSecondsRole,
-                                            PostCountdownTextRole,
-                                            ReplyCountdownTextRole,
-                                            PostOverdueRole,
-                                            ReplyOverdueRole,
-                                        });
+    if (ownerChanged) {
+        sortAgentsForGrouping();
+    } else {
+        const QModelIndex modelIndex = index(row, 0);
+        emit dataChanged(modelIndex, modelIndex, {
+                                                PostThresholdMinutesRole,
+                                                ReplyThresholdMinutesRole,
+                                                PostRemainingSecondsRole,
+                                                ReplyRemainingSecondsRole,
+                                                PostCountdownTextRole,
+                                                ReplyCountdownTextRole,
+                                                PostOverdueRole,
+                                                ReplyOverdueRole,
+                                                HumanOwnerNameRole,
+                                                HumanOwnerGroupRole,
+                                            });
+    }
 
-    setStatusMessage(tr("Updated thresholds for %1.").arg(entry.agentId));
-    scheduleSaveState();
+    const QString ownerDisplay = displayHumanOwner(updatedOwner);
+    if (!m_batchImportInProgress) {
+        setStatusMessage(tr("Updated %1 (human owner: %2).").arg(agentIdForStatus, ownerDisplay));
+        scheduleSaveState();
+    }
 }
 
 void MonitorController::refreshAgent(int row)
@@ -154,6 +186,34 @@ void MonitorController::refreshAll()
     }
 }
 
+int MonitorController::insertionRowForAgent(const AgentEntry &entry) const
+{
+    for (int row = 0; row < m_agents.size(); ++row) {
+        if (lessByOwnerGrouping(entry, m_agents.at(row))) {
+            return row;
+        }
+    }
+    return m_agents.size();
+}
+
+void MonitorController::insertAgentSorted(AgentEntry entry)
+{
+    const int row = insertionRowForAgent(entry);
+    beginInsertRows(QModelIndex(), row, row);
+    m_agents.insert(row, std::move(entry));
+    endInsertRows();
+}
+
+void MonitorController::sortAgentsForGrouping()
+{
+    if (m_agents.size() < 2) {
+        return;
+    }
+    beginResetModel();
+    std::sort(m_agents.begin(), m_agents.end(), lessByOwnerGrouping);
+    endResetModel();
+}
+
 int MonitorController::findAgentRow(const QString &agentId) const
 {
     const QString target = normalizedId(agentId);
@@ -172,6 +232,7 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
     }
 
     AgentEntry &entry = m_agents[row];
+    const QString previousAgentId = entry.agentId;
 
     const bool newerPostSeen = snapshot.lastPostUtc.isValid() && (!entry.lastPostUtc.isValid() || snapshot.lastPostUtc > entry.lastPostUtc);
     const bool newerReplySeen = snapshot.lastReplyUtc.isValid() && (!entry.lastReplyUtc.isValid() || snapshot.lastReplyUtc > entry.lastReplyUtc);
@@ -216,23 +277,30 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
     entry.lastSyncError.clear();
     entry.lastRefreshUtc = QDateTime::currentDateTimeUtc();
 
-    const QModelIndex modelIndex = index(row, 0);
-    emit dataChanged(modelIndex, modelIndex, {
-                                            AgentIdRole,
-                                            OwnerIdRole,
-                                            LastPostTimeRole,
-                                            LastReplyTimeRole,
-                                            PostRemainingSecondsRole,
-                                            ReplyRemainingSecondsRole,
-                                            PostCountdownTextRole,
-                                            ReplyCountdownTextRole,
-                                            PostOverdueRole,
-                                            ReplyOverdueRole,
-                                            HistoryRole,
-                                            LastSyncErrorRole,
-                                            LastRefreshTimeRole,
-                                        });
-    scheduleSaveState();
+    const bool agentIdChanged = normalizedId(previousAgentId) != normalizedId(entry.agentId);
+    if (agentIdChanged) {
+        sortAgentsForGrouping();
+    } else {
+        const QModelIndex modelIndex = index(row, 0);
+        emit dataChanged(modelIndex, modelIndex, {
+                                                AgentIdRole,
+                                                OwnerIdRole,
+                                                LastPostTimeRole,
+                                                LastReplyTimeRole,
+                                                PostRemainingSecondsRole,
+                                                ReplyRemainingSecondsRole,
+                                                PostCountdownTextRole,
+                                                ReplyCountdownTextRole,
+                                                PostOverdueRole,
+                                                ReplyOverdueRole,
+                                                HistoryRole,
+                                                LastSyncErrorRole,
+                                                LastRefreshTimeRole,
+                                            });
+    }
+    if (!m_batchImportInProgress) {
+        scheduleSaveState();
+    }
 }
 
 QVariantList MonitorController::buildHistoryVariant(const QVector<OperationEntry> &history) const

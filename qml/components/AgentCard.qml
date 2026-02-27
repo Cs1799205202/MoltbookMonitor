@@ -6,9 +6,12 @@ import "../js/UiHelpers.js" as UiHelpers
 
 Frame {
     id: root
-    required property int rowIndex
+    readonly property string humanOwnerDisplay: root.humanOwnerName.trim().length > 0 ? root.humanOwnerName : "Unassigned"
+
+    required property int index
     required property string agentId
     required property string ownerId
+    required property string humanOwnerName
     required property int postThresholdMinutes
     required property int replyThresholdMinutes
     required property string lastPostTime
@@ -46,7 +49,12 @@ Frame {
             }
 
             Label {
-                text: "Owner ID: " + root.ownerId
+                text: "Human Owner: " + root.humanOwnerDisplay
+                color: "#334e68"
+            }
+
+            Label {
+                text: "Claim Owner (X): " + root.ownerId
                 color: "#334e68"
             }
 
@@ -62,12 +70,12 @@ Frame {
 
             Button {
                 text: "Refresh"
-                onClicked: monitorController.refreshAgent(root.rowIndex)
+                onClicked: monitorController.refreshAgent(root.index)
             }
 
             Button {
                 text: "Remove"
-                onClicked: monitorController.removeAgent(root.rowIndex)
+                onClicked: monitorController.removeAgent(root.index)
             }
         }
 
@@ -183,7 +191,7 @@ Frame {
             }
 
             Label {
-                text: "Post"
+                text: "Post threshold (min)"
             }
 
             SpinBox {
@@ -195,7 +203,7 @@ Frame {
             }
 
             Label {
-                text: "Reply"
+                text: "Reply threshold (min)"
             }
 
             SpinBox {
@@ -206,9 +214,23 @@ Frame {
                 value: root.replyThresholdMinutes
             }
 
+            Label {
+                text: "Human owner"
+            }
+
+            TextField {
+                id: humanOwnerEditor
+                Layout.preferredWidth: 180
+                text: root.humanOwnerName
+                placeholderText: "Optional"
+            }
+
             Button {
                 text: "Apply"
-                onClicked: monitorController.updateThresholds(root.rowIndex, postThresholdEditor.value, replyThresholdEditor.value)
+                onClicked: monitorController.updateAgentConfig(root.index,
+                                                               postThresholdEditor.value,
+                                                               replyThresholdEditor.value,
+                                                               humanOwnerEditor.text)
             }
 
             Item {

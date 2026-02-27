@@ -62,6 +62,7 @@ void MonitorController::loadState()
         if (entry.ownerId.isEmpty()) {
             entry.ownerId = QStringLiteral("unknown");
         }
+        entry.humanOwnerName = agentObj.value(QStringLiteral("human_owner_name")).toString().trimmed();
 
         entry.postThresholdMinutes = std::max(1, agentObj.value(QStringLiteral("post_threshold_minutes")).toInt(60));
         entry.replyThresholdMinutes = std::max(1, agentObj.value(QStringLiteral("reply_threshold_minutes")).toInt(60));
@@ -108,6 +109,8 @@ void MonitorController::loadState()
         loadedAgents.push_back(std::move(entry));
     }
 
+    std::sort(loadedAgents.begin(), loadedAgents.end(), lessByOwnerGrouping);
+
     if (!loadedAgents.isEmpty()) {
         beginResetModel();
         m_agents = std::move(loadedAgents);
@@ -141,6 +144,7 @@ void MonitorController::saveState() const
         QJsonObject agentObj;
         agentObj.insert(QStringLiteral("agent_id"), entry.agentId);
         agentObj.insert(QStringLiteral("owner_id"), entry.ownerId);
+        agentObj.insert(QStringLiteral("human_owner_name"), entry.humanOwnerName);
         agentObj.insert(QStringLiteral("post_threshold_minutes"), entry.postThresholdMinutes);
         agentObj.insert(QStringLiteral("reply_threshold_minutes"), entry.replyThresholdMinutes);
         agentObj.insert(QStringLiteral("last_post_utc"), entry.lastPostUtc.isValid() ? entry.lastPostUtc.toString(Qt::ISODateWithMs) : QString());

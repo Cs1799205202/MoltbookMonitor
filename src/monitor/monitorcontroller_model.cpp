@@ -58,6 +58,10 @@ QVariant MonitorController::data(const QModelIndex &index, int role) const
         return entry.agentId;
     case OwnerIdRole:
         return entry.ownerId;
+    case HumanOwnerNameRole:
+        return entry.humanOwnerName;
+    case HumanOwnerGroupRole:
+        return displayHumanOwner(entry.humanOwnerName);
     case PostThresholdMinutesRole:
         return entry.postThresholdMinutes;
     case ReplyThresholdMinutesRole:
@@ -96,6 +100,8 @@ QHash<int, QByteArray> MonitorController::roleNames() const
     return {
         {AgentIdRole, "agentId"},
         {OwnerIdRole, "ownerId"},
+        {HumanOwnerNameRole, "humanOwnerName"},
+        {HumanOwnerGroupRole, "humanOwnerGroup"},
         {PostThresholdMinutesRole, "postThresholdMinutes"},
         {ReplyThresholdMinutesRole, "replyThresholdMinutes"},
         {LastPostTimeRole, "lastPostTime"},
@@ -383,8 +389,9 @@ void MonitorController::tickCountdowns()
 
         if (postRemaining != kMissingTimestamp) {
             if (postRemaining < 0 && !entry.postAlertSent) {
+                const QString ownerDisplay = displayHumanOwner(entry.humanOwnerName);
                 const QString message = tr("Post inactivity alert: Agent %1 | Owner %2 exceeded %3 minutes.")
-                                            .arg(entry.agentId, entry.ownerId, QString::number(entry.postThresholdMinutes));
+                                            .arg(entry.agentId, ownerDisplay, QString::number(entry.postThresholdMinutes));
                 emit notificationRaised(message);
                 entry.postAlertSent = true;
             } else if (postRemaining >= 0) {
@@ -394,8 +401,9 @@ void MonitorController::tickCountdowns()
 
         if (replyRemaining != kMissingTimestamp) {
             if (replyRemaining < 0 && !entry.replyAlertSent) {
+                const QString ownerDisplay = displayHumanOwner(entry.humanOwnerName);
                 const QString message = tr("Reply inactivity alert: Agent %1 | Owner %2 exceeded %3 minutes.")
-                                            .arg(entry.agentId, entry.ownerId, QString::number(entry.replyThresholdMinutes));
+                                            .arg(entry.agentId, ownerDisplay, QString::number(entry.replyThresholdMinutes));
                 emit notificationRaised(message);
                 entry.replyAlertSent = true;
             } else if (replyRemaining >= 0) {
