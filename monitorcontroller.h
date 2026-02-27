@@ -2,13 +2,18 @@
 
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QFile>
 #include <QNetworkAccessManager>
+#include <QPointer>
 #include <QSet>
 #include <QTimeZone>
 #include <QTimer>
 #include <QVariantList>
 #include <QVector>
 #include <functional>
+#include <memory>
+
+class QNetworkReply;
 
 class MonitorController : public QAbstractListModel
 {
@@ -17,6 +22,15 @@ class MonitorController : public QAbstractListModel
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QVariantList requestLogs READ requestLogs NOTIFY requestLogsChanged)
+    Q_PROPERTY(QString currentVersion READ currentVersion CONSTANT)
+    Q_PROPERTY(bool updateCheckInProgress READ updateCheckInProgress NOTIFY updateCheckInProgressChanged)
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateAvailableChanged)
+    Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY latestVersionChanged)
+    Q_PROPERTY(QString updateStatus READ updateStatus NOTIFY updateStatusChanged)
+    Q_PROPERTY(bool updateDownloadAvailable READ updateDownloadAvailable NOTIFY updateDownloadAvailableChanged)
+    Q_PROPERTY(bool updateDownloadInProgress READ updateDownloadInProgress NOTIFY updateDownloadInProgressChanged)
+    Q_PROPERTY(double updateDownloadProgress READ updateDownloadProgress NOTIFY updateDownloadProgressChanged)
+    Q_PROPERTY(bool updatePackageReady READ updatePackageReady NOTIFY updatePackageReadyChanged)
 
 public:
     explicit MonitorController(QObject *parent = nullptr);
@@ -48,6 +62,15 @@ public:
     QString statusMessage() const;
     bool busy() const;
     QVariantList requestLogs() const;
+    QString currentVersion() const;
+    bool updateCheckInProgress() const;
+    bool updateAvailable() const;
+    QString latestVersion() const;
+    QString updateStatus() const;
+    bool updateDownloadAvailable() const;
+    bool updateDownloadInProgress() const;
+    double updateDownloadProgress() const;
+    bool updatePackageReady() const;
 
     Q_INVOKABLE void setApiKey(const QString &apiKey);
     Q_INVOKABLE void addAgent(const QString &agentId, int postThresholdMinutes, int replyThresholdMinutes);
@@ -57,6 +80,10 @@ public:
     Q_INVOKABLE void refreshAll();
     Q_INVOKABLE QString currentShanghaiTimeString() const;
     Q_INVOKABLE void clearRequestLogs();
+    Q_INVOKABLE void checkForUpdates();
+    Q_INVOKABLE void downloadLatestUpdate();
+    Q_INVOKABLE void applyDownloadedUpdate();
+    Q_INVOKABLE void openLatestReleasePage();
 
 signals:
     void apiKeyChanged();
@@ -64,6 +91,14 @@ signals:
     void busyChanged();
     void requestLogsChanged();
     void notificationRaised(const QString &message);
+    void updateCheckInProgressChanged();
+    void updateAvailableChanged();
+    void latestVersionChanged();
+    void updateStatusChanged();
+    void updateDownloadAvailableChanged();
+    void updateDownloadInProgressChanged();
+    void updateDownloadProgressChanged();
+    void updatePackageReadyChanged();
 
 private:
     struct OperationEntry {
@@ -103,8 +138,20 @@ private:
     static QString summarize(const QString &text, int maxLen = 90);
     static QString operationKey(const OperationEntry &entry);
     static QString maskedApiKey(const QString &apiKey);
+    static QString normalizedVersionTag(const QString &tag);
+    static int compareVersionStrings(const QString &left, const QString &right);
 
     void setStatusMessage(const QString &message);
+    void setUpdateStatus(const QString &message);
+    void setUpdateCheckInProgress(bool value);
+    void setUpdateAvailable(bool value);
+    void setLatestVersion(const QString &value);
+    void setUpdateDownloadAvailable(bool value);
+    void setUpdateDownloadInProgress(bool value);
+    void setUpdateDownloadProgress(double value);
+    void setUpdatePackageReady(bool value);
+    QString preferredUpdateAssetSuffix() const;
+    QString updateDownloadPathForAsset(const QString &assetName) const;
     int findAgentRow(const QString &agentId) const;
     void applySnapshotToAgent(int row, const ProfileSnapshot &snapshot);
     QVariantList buildHistoryVariant(const QVector<OperationEntry> &history) const;
@@ -141,4 +188,19 @@ private:
     QVariantList m_requestLogs;
     int m_pendingRequests = 0;
     QSet<QString> m_pendingAdds;
+    QPointer<QNetworkReply> m_updateCheckReply;
+    QPointer<QNetworkReply> m_updateDownloadReply;
+    std::unique_ptr<QFile> m_updateDownloadFile;
+    QString m_latestVersion;
+    QString m_latestReleaseUrl;
+    QString m_latestAssetUrl;
+    QString m_latestAssetName;
+    QString m_updateStatus = QStringLiteral("No update check yet.");
+    QString m_downloadedUpdatePath;
+    bool m_updateCheckInProgress = false;
+    bool m_updateAvailable = false;
+    bool m_updateDownloadAvailable = false;
+    bool m_updateDownloadInProgress = false;
+    double m_updateDownloadProgress = 0.0;
+    bool m_updatePackageReady = false;
 };

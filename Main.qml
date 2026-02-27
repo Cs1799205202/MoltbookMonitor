@@ -301,6 +301,60 @@ ApplicationWindow {
                         text: "Timezone: Asia/Shanghai (CST)"
                     }
                 }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Label {
+                        text: "App Version: " + monitorController.currentVersion
+                        color: "#334e68"
+                        font.bold: true
+                    }
+
+                    Button {
+                        text: monitorController.updateCheckInProgress ? "Checking..." : "Check Update"
+                        enabled: !monitorController.updateCheckInProgress && !monitorController.updateDownloadInProgress
+                        onClicked: monitorController.checkForUpdates()
+                    }
+
+                    Button {
+                        text: monitorController.updateDownloadInProgress
+                              ? "Downloading..."
+                              : (monitorController.updateDownloadAvailable
+                                 ? ("Download " + monitorController.latestVersion)
+                                 : (monitorController.updateAvailable ? "No Package" : "No Update"))
+                        enabled: monitorController.updateDownloadAvailable && !monitorController.updateDownloadInProgress
+                        onClicked: monitorController.downloadLatestUpdate()
+                    }
+
+                    Button {
+                        text: "Apply Downloaded Update"
+                        visible: monitorController.updatePackageReady
+                        enabled: monitorController.updatePackageReady
+                        onClicked: monitorController.applyDownloadedUpdate()
+                    }
+
+                    Button {
+                        text: "Release Page"
+                        onClicked: monitorController.openLatestReleasePage()
+                    }
+
+                    ProgressBar {
+                        Layout.preferredWidth: 180
+                        from: 0
+                        to: 1
+                        value: monitorController.updateDownloadProgress
+                        visible: monitorController.updateDownloadInProgress
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        color: "#4a5568"
+                        text: monitorController.updateStatus
+                        elide: Text.ElideRight
+                    }
+                }
             }
         }
 
