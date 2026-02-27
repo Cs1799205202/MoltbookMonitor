@@ -50,6 +50,10 @@ public:
         ReplyThresholdMinutesRole,
         LastPostTimeRole,
         LastReplyTimeRole,
+        PostActivityInferredRole,
+        ReplyActivityInferredRole,
+        PostActivitySourceTextRole,
+        ReplyActivitySourceTextRole,
         PostRemainingSecondsRole,
         ReplyRemainingSecondsRole,
         PostCountdownTextRole,
@@ -128,7 +132,9 @@ signals:
 private:
     static constexpr int kMaxHistoryEntries = 200;
     static constexpr int kMaxRequestLogs = 300;
-    static constexpr int kStateVersion = 2;
+    static constexpr int kStateVersion = 4;
+    static constexpr int kUnknownCount = -1;
+    static constexpr int kAbnormalCountJumpThreshold = 20;
     static constexpr qint64 kMissingTimestamp = std::numeric_limits<qint64>::min();
     static inline constexpr auto kLatestReleaseApiUrl =
         "https://api.github.com/repos/Cs1799205202/MoltbookMonitor/releases/latest";
@@ -154,6 +160,13 @@ private:
         bool replyAlertSent = false;
         QString lastSyncError;
         QDateTime lastRefreshUtc;
+        int totalPostsCount = kUnknownCount;
+        int totalCommentsCount = kUnknownCount;
+        bool consistencyRefreshPending = false;
+        bool postLastSeenInferred = false;
+        bool replyLastSeenInferred = false;
+        bool postCountRegressionAlerted = false;
+        bool replyCountRegressionAlerted = false;
     };
 
     struct ProfileSnapshot {
@@ -163,6 +176,8 @@ private:
         QString ownerId;
         QDateTime lastPostUtc;
         QDateTime lastReplyUtc;
+        int totalPostsCount = kUnknownCount;
+        int totalCommentsCount = kUnknownCount;
         QVector<OperationEntry> operations;
     };
 
@@ -193,6 +208,7 @@ private:
     QString preferredUpdateAssetSuffix() const;
     QString updateDownloadPathForAsset(const QString &assetName) const;
     int findAgentRow(const QString &agentId) const;
+    void scheduleConsistencyRefresh(const QString &agentId, int delayMs = 15000);
     int insertionRowForAgent(const AgentEntry &entry) const;
     void insertAgentSorted(AgentEntry entry);
     void sortAgentsForGrouping();

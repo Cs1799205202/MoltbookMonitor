@@ -66,6 +66,12 @@ void MonitorController::loadState()
 
         entry.postThresholdMinutes = std::max(1, agentObj.value(QStringLiteral("post_threshold_minutes")).toInt(60));
         entry.replyThresholdMinutes = std::max(1, agentObj.value(QStringLiteral("reply_threshold_minutes")).toInt(60));
+        const int savedPostCount = agentObj.value(QStringLiteral("total_posts_count"))
+                                       .toInt(agentObj.value(QStringLiteral("posts_count")).toInt(kUnknownCount));
+        const int savedCommentCount = agentObj.value(QStringLiteral("total_comments_count"))
+                                          .toInt(agentObj.value(QStringLiteral("comments_count")).toInt(kUnknownCount));
+        entry.totalPostsCount = savedPostCount >= 0 ? savedPostCount : kUnknownCount;
+        entry.totalCommentsCount = savedCommentCount >= 0 ? savedCommentCount : kUnknownCount;
 
         entry.lastPostUtc = parseIsoDate(agentObj.value(QStringLiteral("last_post_utc")).toString());
         entry.lastReplyUtc = parseIsoDate(agentObj.value(QStringLiteral("last_reply_utc")).toString());
@@ -73,6 +79,10 @@ void MonitorController::loadState()
         entry.lastSyncError = agentObj.value(QStringLiteral("last_sync_error")).toString();
         entry.postAlertSent = agentObj.value(QStringLiteral("post_alert_sent")).toBool(false);
         entry.replyAlertSent = agentObj.value(QStringLiteral("reply_alert_sent")).toBool(false);
+        entry.postLastSeenInferred = agentObj.value(QStringLiteral("post_last_seen_inferred")).toBool(false);
+        entry.replyLastSeenInferred = agentObj.value(QStringLiteral("reply_last_seen_inferred")).toBool(false);
+        entry.postCountRegressionAlerted = agentObj.value(QStringLiteral("post_count_regression_alerted")).toBool(false);
+        entry.replyCountRegressionAlerted = agentObj.value(QStringLiteral("reply_count_regression_alerted")).toBool(false);
 
         const QJsonArray historyArray = agentObj.value(QStringLiteral("history")).toArray();
         entry.history.reserve(historyArray.size());
@@ -147,12 +157,18 @@ void MonitorController::saveState() const
         agentObj.insert(QStringLiteral("human_owner_name"), entry.humanOwnerName);
         agentObj.insert(QStringLiteral("post_threshold_minutes"), entry.postThresholdMinutes);
         agentObj.insert(QStringLiteral("reply_threshold_minutes"), entry.replyThresholdMinutes);
+        agentObj.insert(QStringLiteral("total_posts_count"), entry.totalPostsCount);
+        agentObj.insert(QStringLiteral("total_comments_count"), entry.totalCommentsCount);
         agentObj.insert(QStringLiteral("last_post_utc"), entry.lastPostUtc.isValid() ? entry.lastPostUtc.toString(Qt::ISODateWithMs) : QString());
         agentObj.insert(QStringLiteral("last_reply_utc"), entry.lastReplyUtc.isValid() ? entry.lastReplyUtc.toString(Qt::ISODateWithMs) : QString());
         agentObj.insert(QStringLiteral("last_refresh_utc"), entry.lastRefreshUtc.isValid() ? entry.lastRefreshUtc.toString(Qt::ISODateWithMs) : QString());
         agentObj.insert(QStringLiteral("last_sync_error"), entry.lastSyncError);
         agentObj.insert(QStringLiteral("post_alert_sent"), entry.postAlertSent);
         agentObj.insert(QStringLiteral("reply_alert_sent"), entry.replyAlertSent);
+        agentObj.insert(QStringLiteral("post_last_seen_inferred"), entry.postLastSeenInferred);
+        agentObj.insert(QStringLiteral("reply_last_seen_inferred"), entry.replyLastSeenInferred);
+        agentObj.insert(QStringLiteral("post_count_regression_alerted"), entry.postCountRegressionAlerted);
+        agentObj.insert(QStringLiteral("reply_count_regression_alerted"), entry.replyCountRegressionAlerted);
 
         QJsonArray historyArray;
         for (const OperationEntry &op : entry.history) {

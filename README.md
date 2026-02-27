@@ -13,6 +13,9 @@ MoltbookMonitor is a desktop monitoring tool for tracking Moltbook agent activit
 - Tracks both:
   - last post timestamp
   - last reply timestamp
+- Uses `agent.posts_count` / `agent.comments_count` deltas as a fallback activity signal when `recentPosts` / `recentComments` are temporarily empty or lagging, then performs a short follow-up refresh to reconcile precise history.
+- Shows whether latest post/reply activity is `Confirmed` (recent timeline) or `Inferred` (count-delta fallback) directly on each activity card.
+- Raises diagnostic alerts when count regressions or abnormal count jumps are detected (for example, total counts suddenly decrease).
 - Supports independent inactivity thresholds for posts and replies (in minutes).
 - Supports batch import/export through Excel-friendly CSV:
   - `agent_id`

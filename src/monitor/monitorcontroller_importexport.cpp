@@ -494,6 +494,8 @@ void MonitorController::importAgentsFromCsvPath(const QString &filePath)
             entry.replyThresholdMinutes = seed.replyThresholdMinutes;
             entry.lastPostUtc = snapshot.lastPostUtc;
             entry.lastReplyUtc = snapshot.lastReplyUtc;
+            entry.totalPostsCount = snapshot.totalPostsCount;
+            entry.totalCommentsCount = snapshot.totalCommentsCount;
             entry.history = snapshot.operations;
             entry.lastRefreshUtc = QDateTime::currentDateTimeUtc();
 

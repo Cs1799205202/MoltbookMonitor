@@ -7,6 +7,8 @@ import "../js/UiHelpers.js" as UiHelpers
 Frame {
     id: root
     readonly property string humanOwnerDisplay: root.humanOwnerName.trim().length > 0 ? root.humanOwnerName : "Unassigned"
+    readonly property bool postHasData: !UiHelpers.isMissingTimestamp(root.postRemainingSeconds)
+    readonly property bool replyHasData: !UiHelpers.isMissingTimestamp(root.replyRemainingSeconds)
 
     required property int index
     required property string agentId
@@ -16,6 +18,10 @@ Frame {
     required property int replyThresholdMinutes
     required property string lastPostTime
     required property string lastReplyTime
+    required property bool postActivityInferred
+    required property bool replyActivityInferred
+    required property string postActivitySourceText
+    required property string replyActivitySourceText
     required property real postRemainingSeconds
     required property real replyRemainingSeconds
     required property string postCountdownText
@@ -108,6 +114,36 @@ Frame {
                         color: "#486581"
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            radius: 4
+                            color: !root.postHasData ? "#f1f5f9" : (root.postActivityInferred ? "#fff4e5" : "#eaf6f1")
+                            border.color: !root.postHasData ? "#cbd5e1" : (root.postActivityInferred ? "#f2a93b" : "#73c19e")
+                            implicitWidth: sourceTag.implicitWidth + 10
+                            implicitHeight: sourceTag.implicitHeight + 4
+
+                            Label {
+                                id: sourceTag
+                                anchors.centerIn: parent
+                                text: !root.postHasData ? "No Data" : (root.postActivityInferred ? "Inferred" : "Confirmed")
+                                color: !root.postHasData ? "#475569" : (root.postActivityInferred ? "#8a4b00" : "#0f5132")
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.postActivitySourceText
+                            color: "#627d98"
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
+                    }
+
                     Label {
                         text: root.postCountdownText
                         color: UiHelpers.countdownColor(root.postRemainingSeconds, root.postThresholdMinutes)
@@ -153,6 +189,36 @@ Frame {
                     Label {
                         text: "Last reply: " + root.lastReplyTime
                         color: "#486581"
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            radius: 4
+                            color: !root.replyHasData ? "#f1f5f9" : (root.replyActivityInferred ? "#fff4e5" : "#eaf6f1")
+                            border.color: !root.replyHasData ? "#cbd5e1" : (root.replyActivityInferred ? "#f2a93b" : "#73c19e")
+                            implicitWidth: replySourceTag.implicitWidth + 10
+                            implicitHeight: replySourceTag.implicitHeight + 4
+
+                            Label {
+                                id: replySourceTag
+                                anchors.centerIn: parent
+                                text: !root.replyHasData ? "No Data" : (root.replyActivityInferred ? "Inferred" : "Confirmed")
+                                color: !root.replyHasData ? "#475569" : (root.replyActivityInferred ? "#8a4b00" : "#0f5132")
+                                font.pixelSize: 11
+                                font.bold: true
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.replyActivitySourceText
+                            color: "#627d98"
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
                     }
 
                     Label {
@@ -283,9 +349,11 @@ Frame {
 
                             Label {
                                 text: modelData.type
-                                color: modelData.type === "Post" ? "#155eef" : "#0e9384"
+                                color: modelData.type === "Post" ? "#155eef"
+                                       : (modelData.type === "Reply" ? "#0e9384"
+                                           : (modelData.type.indexOf("Inferred") !== -1 ? "#8a4b00" : "#b42318"))
                                 font.bold: true
-                                Layout.preferredWidth: 48
+                                Layout.preferredWidth: 92
                             }
 
                             Label {

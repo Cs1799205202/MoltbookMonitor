@@ -70,6 +70,26 @@ QVariant MonitorController::data(const QModelIndex &index, int role) const
         return formatShanghai(entry.lastPostUtc);
     case LastReplyTimeRole:
         return formatShanghai(entry.lastReplyUtc);
+    case PostActivityInferredRole:
+        return entry.postLastSeenInferred;
+    case ReplyActivityInferredRole:
+        return entry.replyLastSeenInferred;
+    case PostActivitySourceTextRole:
+        if (!entry.lastPostUtc.isValid()) {
+            return tr("No post activity observed yet");
+        }
+        if (entry.postLastSeenInferred) {
+            return tr("Inferred from posts_count delta");
+        }
+        return tr("Confirmed by recentPosts timestamp");
+    case ReplyActivitySourceTextRole:
+        if (!entry.lastReplyUtc.isValid()) {
+            return tr("No reply activity observed yet");
+        }
+        if (entry.replyLastSeenInferred) {
+            return tr("Inferred from comments_count delta");
+        }
+        return tr("Confirmed by recentComments timestamp");
     case PostRemainingSecondsRole:
         return postRemaining;
     case ReplyRemainingSecondsRole:
@@ -106,6 +126,10 @@ QHash<int, QByteArray> MonitorController::roleNames() const
         {ReplyThresholdMinutesRole, "replyThresholdMinutes"},
         {LastPostTimeRole, "lastPostTime"},
         {LastReplyTimeRole, "lastReplyTime"},
+        {PostActivityInferredRole, "postActivityInferred"},
+        {ReplyActivityInferredRole, "replyActivityInferred"},
+        {PostActivitySourceTextRole, "postActivitySourceText"},
+        {ReplyActivitySourceTextRole, "replyActivitySourceText"},
         {PostRemainingSecondsRole, "postRemainingSeconds"},
         {ReplyRemainingSecondsRole, "replyRemainingSeconds"},
         {PostCountdownTextRole, "postCountdownText"},

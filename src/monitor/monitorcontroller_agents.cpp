@@ -52,6 +52,8 @@ void MonitorController::addAgent(const QString &agentId,
         entry.replyThresholdMinutes = replyThresholdMinutes;
         entry.lastPostUtc = snapshot.lastPostUtc;
         entry.lastReplyUtc = snapshot.lastReplyUtc;
+        entry.totalPostsCount = snapshot.totalPostsCount;
+        entry.totalCommentsCount = snapshot.totalCommentsCount;
         entry.history = snapshot.operations;
         entry.lastRefreshUtc = QDateTime::currentDateTimeUtc();
 
@@ -225,6 +227,38 @@ int MonitorController::findAgentRow(const QString &agentId) const
     return -1;
 }
 
+void MonitorController::scheduleConsistencyRefresh(const QString &agentId, int delayMs)
+{
+    const int row = findAgentRow(agentId);
+    if (row < 0) {
+        return;
+    }
+
+    AgentEntry &entry = m_agents[row];
+    if (entry.consistencyRefreshPending) {
+        return;
+    }
+
+    entry.consistencyRefreshPending = true;
+    const QString trackedAgentId = entry.agentId;
+    const int resolvedDelayMs = std::max(1000, delayMs);
+
+    QTimer::singleShot(resolvedDelayMs, this, [this, trackedAgentId]() {
+        const int refreshRow = findAgentRow(trackedAgentId);
+        if (refreshRow < 0) {
+            return;
+        }
+
+        AgentEntry &refreshEntry = m_agents[refreshRow];
+        if (!refreshEntry.consistencyRefreshPending) {
+            return;
+        }
+
+        refreshEntry.consistencyRefreshPending = false;
+        refreshAgent(refreshRow);
+    });
+}
+
 void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &snapshot)
 {
     if (row < 0 || row >= m_agents.size()) {
@@ -233,17 +267,96 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
 
     AgentEntry &entry = m_agents[row];
     const QString previousAgentId = entry.agentId;
+    const int previousPostCount = entry.totalPostsCount;
+    const int previousCommentCount = entry.totalCommentsCount;
+    const QDateTime observedAtUtc = QDateTime::currentDateTimeUtc();
+    const QString ownerDisplay = displayHumanOwner(entry.humanOwnerName);
 
     const bool newerPostSeen = snapshot.lastPostUtc.isValid() && (!entry.lastPostUtc.isValid() || snapshot.lastPostUtc > entry.lastPostUtc);
     const bool newerReplySeen = snapshot.lastReplyUtc.isValid() && (!entry.lastReplyUtc.isValid() || snapshot.lastReplyUtc > entry.lastReplyUtc);
+    const bool postCountRegressed = snapshot.totalPostsCount >= 0
+        && previousPostCount >= 0
+        && snapshot.totalPostsCount < previousPostCount;
+    const bool commentCountRegressed = snapshot.totalCommentsCount >= 0
+        && previousCommentCount >= 0
+        && snapshot.totalCommentsCount < previousCommentCount;
+    const int postDelta = (snapshot.totalPostsCount >= 0 && previousPostCount >= 0)
+        ? snapshot.totalPostsCount - previousPostCount
+        : 0;
+    const int replyDelta = (snapshot.totalCommentsCount >= 0 && previousCommentCount >= 0)
+        ? snapshot.totalCommentsCount - previousCommentCount
+        : 0;
+    const bool postCountIncreased = snapshot.totalPostsCount >= 0
+        && previousPostCount >= 0
+        && snapshot.totalPostsCount > previousPostCount;
+    const bool commentCountIncreased = snapshot.totalCommentsCount >= 0
+        && previousCommentCount >= 0
+        && snapshot.totalCommentsCount > previousCommentCount;
+    const bool postAbnormalJump = postDelta >= kAbnormalCountJumpThreshold && !newerPostSeen;
+    const bool replyAbnormalJump = replyDelta >= kAbnormalCountJumpThreshold && !newerReplySeen;
+    const bool inferredPostSeen = postCountIncreased && !newerPostSeen;
+    const bool inferredReplySeen = commentCountIncreased && !newerReplySeen;
+    const bool canReconcileInferredPost = entry.postLastSeenInferred
+        && snapshot.lastPostUtc.isValid()
+        && snapshot.totalPostsCount >= 0
+        && previousPostCount >= 0
+        && snapshot.totalPostsCount == previousPostCount
+        && entry.lastPostUtc.isValid()
+        && snapshot.lastPostUtc <= entry.lastPostUtc
+        && snapshot.lastPostUtc >= entry.lastPostUtc.addSecs(-30 * 60);
+    const bool canReconcileInferredReply = entry.replyLastSeenInferred
+        && snapshot.lastReplyUtc.isValid()
+        && snapshot.totalCommentsCount >= 0
+        && previousCommentCount >= 0
+        && snapshot.totalCommentsCount == previousCommentCount
+        && entry.lastReplyUtc.isValid()
+        && snapshot.lastReplyUtc <= entry.lastReplyUtc
+        && snapshot.lastReplyUtc >= entry.lastReplyUtc.addSecs(-30 * 60);
 
     entry.agentId = snapshot.agentId.isEmpty() ? entry.agentId : snapshot.agentId;
     entry.ownerId = snapshot.ownerId.isEmpty() ? entry.ownerId : snapshot.ownerId;
-    if (snapshot.lastPostUtc.isValid()) {
-        entry.lastPostUtc = snapshot.lastPostUtc;
+    if (snapshot.totalPostsCount >= 0 && !postCountRegressed) {
+        entry.totalPostsCount = snapshot.totalPostsCount;
+        entry.postCountRegressionAlerted = false;
     }
-    if (snapshot.lastReplyUtc.isValid()) {
+    if (snapshot.totalCommentsCount >= 0 && !commentCountRegressed) {
+        entry.totalCommentsCount = snapshot.totalCommentsCount;
+        entry.replyCountRegressionAlerted = false;
+    }
+
+    bool postConfirmedFromRecent = false;
+    bool replyConfirmedFromRecent = false;
+    if (snapshot.lastPostUtc.isValid() && newerPostSeen) {
+        entry.lastPostUtc = snapshot.lastPostUtc;
+        postConfirmedFromRecent = true;
+    }
+    if (snapshot.lastReplyUtc.isValid() && newerReplySeen) {
         entry.lastReplyUtc = snapshot.lastReplyUtc;
+        replyConfirmedFromRecent = true;
+    }
+    if (canReconcileInferredPost) {
+        entry.lastPostUtc = snapshot.lastPostUtc;
+        postConfirmedFromRecent = true;
+    }
+    if (canReconcileInferredReply) {
+        entry.lastReplyUtc = snapshot.lastReplyUtc;
+        replyConfirmedFromRecent = true;
+    }
+    if (inferredPostSeen && (!entry.lastPostUtc.isValid() || observedAtUtc > entry.lastPostUtc)) {
+        entry.lastPostUtc = observedAtUtc;
+    }
+    if (inferredReplySeen && (!entry.lastReplyUtc.isValid() || observedAtUtc > entry.lastReplyUtc)) {
+        entry.lastReplyUtc = observedAtUtc;
+    }
+    if (postConfirmedFromRecent) {
+        entry.postLastSeenInferred = false;
+    } else if (inferredPostSeen) {
+        entry.postLastSeenInferred = true;
+    }
+    if (replyConfirmedFromRecent) {
+        entry.replyLastSeenInferred = false;
+    } else if (inferredReplySeen) {
+        entry.replyLastSeenInferred = true;
     }
 
     QSet<QString> knownOperationKeys;
@@ -251,7 +364,73 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
         knownOperationKeys.insert(operationKey(existing));
     }
 
-    for (const OperationEntry &incoming : snapshot.operations) {
+    QVector<OperationEntry> incomingOperations = snapshot.operations;
+    auto addDiagnostic = [&incomingOperations, &observedAtUtc](const QString &detail) {
+        OperationEntry diag;
+        diag.type = QStringLiteral("Diagnostic");
+        diag.detail = detail;
+        diag.timestampUtc = observedAtUtc;
+        incomingOperations.push_back(std::move(diag));
+    };
+
+    if (postCountRegressed && !entry.postCountRegressionAlerted) {
+        addDiagnostic(tr("posts_count regressed: %1 -> %2. Keeping previous baseline to avoid false inactivity resets.")
+                          .arg(previousPostCount)
+                          .arg(snapshot.totalPostsCount));
+        emit notificationRaised(tr("Count regression alert: Agent %1 | Owner %2 posts_count dropped from %3 to %4. Check API consistency/caching.")
+                                    .arg(entry.agentId, ownerDisplay)
+                                    .arg(previousPostCount)
+                                    .arg(snapshot.totalPostsCount));
+        entry.postCountRegressionAlerted = true;
+    }
+    if (commentCountRegressed && !entry.replyCountRegressionAlerted) {
+        addDiagnostic(tr("comments_count regressed: %1 -> %2. Keeping previous baseline to avoid false inactivity resets.")
+                          .arg(previousCommentCount)
+                          .arg(snapshot.totalCommentsCount));
+        emit notificationRaised(tr("Count regression alert: Agent %1 | Owner %2 comments_count dropped from %3 to %4. Check API consistency/caching.")
+                                    .arg(entry.agentId, ownerDisplay)
+                                    .arg(previousCommentCount)
+                                    .arg(snapshot.totalCommentsCount));
+        entry.replyCountRegressionAlerted = true;
+    }
+    if (postAbnormalJump) {
+        addDiagnostic(tr("posts_count jumped by %1 in one refresh (%2 -> %3) while recentPosts did not provide a newer timestamp.")
+                          .arg(postDelta)
+                          .arg(previousPostCount)
+                          .arg(snapshot.totalPostsCount));
+        emit notificationRaised(tr("Count anomaly alert: Agent %1 | Owner %2 posts_count jumped by %3 without a matching recentPosts timestamp.")
+                                    .arg(entry.agentId, ownerDisplay)
+                                    .arg(postDelta));
+    }
+    if (replyAbnormalJump) {
+        addDiagnostic(tr("comments_count jumped by %1 in one refresh (%2 -> %3) while recentComments did not provide a newer timestamp.")
+                          .arg(replyDelta)
+                          .arg(previousCommentCount)
+                          .arg(snapshot.totalCommentsCount));
+        emit notificationRaised(tr("Count anomaly alert: Agent %1 | Owner %2 comments_count jumped by %3 without a matching recentComments timestamp.")
+                                    .arg(entry.agentId, ownerDisplay)
+                                    .arg(replyDelta));
+    }
+    if (inferredPostSeen) {
+        OperationEntry inferred;
+        inferred.type = QStringLiteral("Post (Inferred)");
+        inferred.detail = tr("Inferred from posts_count increase: %1 -> %2; recentPosts had no newer record yet.")
+                              .arg(previousPostCount)
+                              .arg(snapshot.totalPostsCount);
+        inferred.timestampUtc = observedAtUtc;
+        incomingOperations.push_back(std::move(inferred));
+    }
+    if (inferredReplySeen) {
+        OperationEntry inferred;
+        inferred.type = QStringLiteral("Reply (Inferred)");
+        inferred.detail = tr("Inferred from comments_count increase: %1 -> %2; recentComments had no newer record yet.")
+                              .arg(previousCommentCount)
+                              .arg(snapshot.totalCommentsCount);
+        inferred.timestampUtc = observedAtUtc;
+        incomingOperations.push_back(std::move(inferred));
+    }
+
+    for (const OperationEntry &incoming : incomingOperations) {
         const QString key = operationKey(incoming);
         if (knownOperationKeys.contains(key)) {
             continue;
@@ -267,15 +446,22 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
         entry.history.resize(kMaxHistoryEntries);
     }
 
-    if (newerPostSeen) {
+    if (newerPostSeen || inferredPostSeen) {
         entry.postAlertSent = false;
     }
-    if (newerReplySeen) {
+    if (newerReplySeen || inferredReplySeen) {
         entry.replyAlertSent = false;
+    }
+    if (postConfirmedFromRecent || replyConfirmedFromRecent) {
+        entry.consistencyRefreshPending = false;
     }
 
     entry.lastSyncError.clear();
-    entry.lastRefreshUtc = QDateTime::currentDateTimeUtc();
+    entry.lastRefreshUtc = observedAtUtc;
+
+    if (inferredPostSeen || inferredReplySeen || postCountRegressed || commentCountRegressed) {
+        scheduleConsistencyRefresh(entry.agentId);
+    }
 
     const bool agentIdChanged = normalizedId(previousAgentId) != normalizedId(entry.agentId);
     if (agentIdChanged) {
@@ -287,6 +473,10 @@ void MonitorController::applySnapshotToAgent(int row, const ProfileSnapshot &sna
                                                 OwnerIdRole,
                                                 LastPostTimeRole,
                                                 LastReplyTimeRole,
+                                                PostActivityInferredRole,
+                                                ReplyActivityInferredRole,
+                                                PostActivitySourceTextRole,
+                                                ReplyActivitySourceTextRole,
                                                 PostRemainingSecondsRole,
                                                 ReplyRemainingSecondsRole,
                                                 PostCountdownTextRole,

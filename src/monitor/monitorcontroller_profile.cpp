@@ -10,6 +10,8 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 void MonitorController::requestProfile(const QString &agentId, std::function<void(ProfileSnapshot)> callback)
 {
@@ -113,6 +115,60 @@ MonitorController::ProfileSnapshot MonitorController::parseProfileResponse(const
     }
 
     snapshot.agentId = agentObject.value(QStringLiteral("name")).toString();
+    auto parseOptionalCount = [](const QJsonObject &object, std::initializer_list<const char *> keys) -> int {
+        auto parseValue = [](const QJsonValue &value) -> int {
+            if (value.isDouble()) {
+                const double raw = value.toDouble(-1.0);
+                if (!std::isfinite(raw) || raw < 0.0) {
+                    return -1;
+                }
+
+                const double integral = std::floor(raw);
+                if (!qFuzzyCompare(raw + 1.0, integral + 1.0)) {
+                    return -1;
+                }
+                if (integral > static_cast<double>(std::numeric_limits<int>::max())) {
+                    return -1;
+                }
+
+                return static_cast<int>(integral);
+            }
+
+            if (value.isString()) {
+                bool ok = false;
+                const int parsed = value.toString().trimmed().toInt(&ok);
+                if (ok && parsed >= 0) {
+                    return parsed;
+                }
+            }
+
+            return -1;
+        };
+
+        for (const char *key : keys) {
+            const QString jsonKey = QString::fromLatin1(key);
+            if (!object.contains(jsonKey)) {
+                continue;
+            }
+
+            const int parsed = parseValue(object.value(jsonKey));
+            if (parsed >= 0) {
+                return parsed;
+            }
+        }
+
+        return -1;
+    };
+
+    snapshot.totalPostsCount = parseOptionalCount(agentObject,
+                                                  {"posts_count", "postsCount", "post_count", "postCount"});
+    snapshot.totalCommentsCount = parseOptionalCount(agentObject,
+                                                     {"comments_count",
+                                                      "commentsCount",
+                                                      "replies_count",
+                                                      "repliesCount",
+                                                      "reply_count",
+                                                      "replyCount"});
 
     const QJsonObject ownerObject = agentObject.value(QStringLiteral("owner")).toObject();
     snapshot.ownerId = ownerObject.value(QStringLiteral("x_handle")).toString();
