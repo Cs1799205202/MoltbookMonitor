@@ -21,6 +21,10 @@
 #include <algorithm>
 #include <limits>
 
+#ifndef APP_VERSION
+#define APP_VERSION "0.0.0"
+#endif
+
 namespace {
 constexpr int kMaxHistoryEntries = 200;
 constexpr int kMaxRequestLogs = 300;
@@ -34,6 +38,10 @@ MonitorController::MonitorController(QObject *parent)
     : QAbstractListModel(parent)
     , m_shanghaiZone(QByteArrayLiteral("Asia/Shanghai"))
 {
+    if (QCoreApplication::applicationVersion().trimmed().isEmpty()) {
+        QCoreApplication::setApplicationVersion(QStringLiteral(APP_VERSION));
+    }
+
     if (!m_shanghaiZone.isValid()) {
         m_shanghaiZone = QTimeZone::systemTimeZone();
     }
@@ -155,8 +163,17 @@ QVariantList MonitorController::requestLogs() const
 
 QString MonitorController::currentVersion() const
 {
-    const QString version = QCoreApplication::applicationVersion().trimmed();
-    return version.isEmpty() ? QStringLiteral("0.0.0") : version;
+    const QString runtimeVersion = normalizedVersionTag(QCoreApplication::applicationVersion().trimmed());
+    if (!runtimeVersion.isEmpty()) {
+        return runtimeVersion;
+    }
+
+    const QString compileVersion = normalizedVersionTag(QStringLiteral(APP_VERSION).trimmed());
+    if (!compileVersion.isEmpty()) {
+        return compileVersion;
+    }
+
+    return QStringLiteral("0.0.0");
 }
 
 bool MonitorController::updateCheckInProgress() const
